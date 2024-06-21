@@ -6,6 +6,8 @@
     <title>My Travel Adventures</title>
     <link href='https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.css' rel='stylesheet' />
     <script src='https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.js'></script>
+    <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.min.js"></script>
+    <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.css" type="text/css">
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
     <style>
         body {
@@ -81,15 +83,14 @@
     </div>
 
     <script>
-        mapboxgl.accessToken = 'pk.eyJ1IjoiZmFueWl5YW5nMjMzIiwiYSI6ImNseG56dHp1dTA5cmQyanB4MDlyNXB5YjAifQ.dXU4lx12g2LDUhENBR_UGA';
+        mapboxgl.accessToken = 'pk.eyJ1IjoiZXhhbXBsZXVzZXIiLCJhIjoiY2xpbXd3djQwMDRtODNmbzd6cDl0dTJkeSJ9.Bvk2R6GjF-w1we6gRZSLyA';
 
         const places = [
-            { name: "Tokyo, Japan", coordinates: [139.6503, 35.6762], description: "A blend of the ultramodern and the traditional", image: "https://source.unsplash.com/400x300/?tokyo" },
-            { name: "Paris, France", coordinates: [2.3522, 48.8566], description: "The City of Light", image: "https://source.unsplash.com/400x300/?paris" },
-            { name: "New York City, USA", coordinates: [-74.0060, 40.7128], description: "The Big Apple", image: "https://source.unsplash.com/400x300/?newyork" },
-            { name: "Sydney, Australia", coordinates: [151.2093, -33.8688], description: "Harbor city with iconic landmarks", image: "https://source.unsplash.com/400x300/?sydney" },
-            { name: "Rio de Janeiro, Brazil", coordinates: [-43.1729, -22.9068], description: "Cidade Maravilhosa", image: "https://source.unsplash.com/400x300/?rio" },
-            { name: "Cape Town, South Africa", coordinates: [18.4241, -33.9249], description: "The Mother City", image: "https://source.unsplash.com/400x300/?capetown" }
+            { name: "Tokyo, Japan", description: "A blend of the ultramodern and the traditional", image: "https://source.unsplash.com/400x300/?tokyo" },
+            { name: "Singapore", description: "The City of Light", image: "https://github.com/fanyiyang/fanyiyang.github.io/blob/main/IMG_0135.jpeg" },
+            { name: "New York City, USA", description: "The Big Apple", image: "https://source.unsplash.com/400x300/?newyork" },
+            { name: "London, UK", description: "Harbor city with iconic landmarks", image: "https://source.unsplash.com/400x300/?sydney" },
+            { name: "Cape Town, South Africa", description: "The Mother City", image: "https://source.unsplash.com/400x300/?capetown" }
         ];
 
         const map = new mapboxgl.Map({
@@ -99,7 +100,15 @@
             zoom: 1.5
         });
 
-        map.on('load', function () {
+        map.on('load', async function () {
+            // Geocode all place names
+            const geocodedPlaces = await Promise.all(places.map(async place => {
+                const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(place.name)}.json?access_token=${mapboxgl.accessToken}`);
+                const data = await response.json();
+                const [lon, lat] = data.features[0].center;
+                return { ...place, coordinates: [lon, lat] };
+            }));
+
             // Add a source and layer displaying a point which will be animated in a circle.
             map.addSource('route', {
                 'type': 'geojson',
@@ -108,7 +117,7 @@
                     'properties': {},
                     'geometry': {
                         'type': 'LineString',
-                        'coordinates': places.map(place => place.coordinates)
+                        'coordinates': geocodedPlaces.map(place => place.coordinates)
                     }
                 }
             });
@@ -129,7 +138,7 @@
             });
 
             // Add markers and popups
-            places.forEach((place, index) => {
+            geocodedPlaces.forEach((place, index) => {
                 const el = document.createElement('div');
                 el.className = 'marker';
                 el.style.backgroundImage = `url(https://placekitten.com/g/${40 + index * 2}/${40 + index * 2})`;
@@ -160,7 +169,7 @@
                     'properties': {},
                     'geometry': {
                         'type': 'LineString',
-                        'coordinates': places.map(place => place.coordinates).slice(0, Math.ceil(places.length * step / steps))
+                        'coordinates': geocodedPlaces.map(place => place.coordinates).slice(0, Math.ceil(geocodedPlaces.length * step / steps))
                     }
                 });
                 
@@ -168,31 +177,31 @@
             };
             
             animateLine();
-        });
 
-        // Create place cards
-        const placeGrid = document.getElementById('placeGrid');
-        places.forEach((place, index) => {
-            const card = document.createElement('div');
-            card.className = 'place-card';
-            card.innerHTML = `
-                <img src="${place.image}" alt="${place.name}" class="place-image">
-                <div class="place-info">
-                    <h2 class="place-name">${place.name}</h2>
-                    <p class="place-description">${place.description}</p>
-                </div>
-            `;
-            placeGrid.appendChild(card);
+            // Create place cards
+            const placeGrid = document.getElementById('placeGrid');
+            geocodedPlaces.forEach((place, index) => {
+                const card = document.createElement('div');
+                card.className = 'place-card';
+                card.innerHTML = `
+                    <img src="${place.image}" alt="${place.name}" class="place-image">
+                    <div class="place-info">
+                        <h2 class="place-name">${place.name}</h2>
+                        <p class="place-description">${place.description}</p>
+                    </div>
+                `;
+                placeGrid.appendChild(card);
 
-            card.addEventListener('click', () => {
-                map.flyTo({
-                    center: place.coordinates,
-                    zoom: 9,
-                    speed: 0.8,
-                    curve: 1,
-                    easing(t) {
-                        return t;
-                    }
+                card.addEventListener('click', () => {
+                    map.flyTo({
+                        center: place.coordinates,
+                        zoom: 9,
+                        speed: 0.8,
+                        curve: 1,
+                        easing(t) {
+                            return t;
+                        }
+                    });
                 });
             });
         });
