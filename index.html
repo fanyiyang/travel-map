@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Travel Adventures</title>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.css">
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+        }
+        header {
+            background-color: #333;
+            color: #fff;
+            text-align: center;
+            padding: 1rem;
+        }
+        #travel-map {
+            height: 400px;
+            width: 100%;
+        }
+        #travel-list {
+            padding: 2rem;
+        }
+        .place-item {
+            margin-bottom: 1rem;
+            padding: 1rem;
+            background-color: #f4f4f4;
+            border-radius: 5px;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>My Travel Adventures</h1>
+    </header>
+    <main id="travel-map"></main>
+    <section id="travel-list"></section>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.min.js"></script>
+    <script>
+        // Initialize the map
+        const map = L.map('travel-map').setView([0, 0], 2);
+
+        // Add the OpenStreetMap tiles
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        // Sample data of places visited
+        const places = [
+            { name: "Paris, France", lat: 48.8566, lon: 2.3522 },
+            { name: "Tokyo, Japan", lat: 35.6762, lon: 139.6503 },
+            { name: "New York City, USA", lat: 40.7128, lon: -74.0060 }
+        ];
+
+        // Add markers to the map and create list items
+        const travelList = document.getElementById('travel-list');
+
+        places.forEach(place => {
+            // Add marker to the map
+            L.marker([place.lat, place.lon]).addTo(map)
+                .bindPopup(place.name);
+
+            // Create list item
+            const listItem = document.createElement('div');
+            listItem.className = 'place-item';
+            listItem.textContent = place.name;
+            travelList.appendChild(listItem);
+        });
+    </script>
+</body>
+</html>
