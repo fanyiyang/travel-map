@@ -4,11 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Travel Adventures</title>
-    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
-    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <link href='https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.css' rel='stylesheet' />
+    <script src='https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.js'></script>
+    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
     <style>
         body {
-            font-family: Arial, sans-serif;
+            font-family: 'Arial', sans-serif;
             margin: 0;
             padding: 0;
             background-color: #f0f0f0;
@@ -24,7 +25,7 @@
             margin: 0;
         }
         #map {
-            height: 400px;
+            height: 500px;
             width: 100%;
             margin-bottom: 2rem;
         }
@@ -44,6 +45,7 @@
             overflow: hidden;
             box-shadow: 0 4px 6px rgba(0,0,0,0.1);
             transition: transform 0.3s ease;
+            cursor: pointer;
         }
         .place-card:hover {
             transform: translateY(-5px);
@@ -64,6 +66,9 @@
             margin: 0;
             color: #666;
         }
+        .mapboxgl-popup {
+            max-width: 200px;
+        }
     </style>
 </head>
 <body>
@@ -76,29 +81,98 @@
     </div>
 
     <script>
+        mapboxgl.accessToken = 'pk.eyJ1IjoiZXhhbXBsZXVzZXIiLCJhIjoiY2xpbXd3djQwMDRtODNmbzd6cDl0dTJkeSJ9.Bvk2R6GjF-w1we6gRZSLyA';
+
         const places = [
-            { name: "Paris, France", lat: 48.8566, lon: 2.3522, description: "The City of Light", image: "https://source.unsplash.com/400x300/?paris" },
-            { name: "Tokyo, Japan", lat: 35.6762, lon: 139.6503, description: "A blend of the ultramodern and the traditional", image: "https://source.unsplash.com/400x300/?tokyo" },
-            { name: "New York City, USA", lat: 40.7128, lon: -74.0060, description: "The Big Apple", image: "https://source.unsplash.com/400x300/?newyork" },
-            { name: "Sydney, Australia", lat: -33.8688, lon: 151.2093, description: "Harbor city with iconic landmarks", image: "https://source.unsplash.com/400x300/?sydney" },
-            { name: "Rio de Janeiro, Brazil", lat: -22.9068, lon: -43.1729, description: "Cidade Maravilhosa", image: "https://source.unsplash.com/400x300/?rio" },
-            { name: "Cape Town, South Africa", lat: -33.9249, lon: 18.4241, description: "The Mother City", image: "https://source.unsplash.com/400x300/?capetown" }
+            { name: "Tokyo, Japan", coordinates: [139.6503, 35.6762], description: "A blend of the ultramodern and the traditional", image: "https://source.unsplash.com/400x300/?tokyo" },
+            { name: "Paris, France", coordinates: [2.3522, 48.8566], description: "The City of Light", image: "https://source.unsplash.com/400x300/?paris" },
+            { name: "New York City, USA", coordinates: [-74.0060, 40.7128], description: "The Big Apple", image: "https://source.unsplash.com/400x300/?newyork" },
+            { name: "Sydney, Australia", coordinates: [151.2093, -33.8688], description: "Harbor city with iconic landmarks", image: "https://source.unsplash.com/400x300/?sydney" },
+            { name: "Rio de Janeiro, Brazil", coordinates: [-43.1729, -22.9068], description: "Cidade Maravilhosa", image: "https://source.unsplash.com/400x300/?rio" },
+            { name: "Cape Town, South Africa", coordinates: [18.4241, -33.9249], description: "The Mother City", image: "https://source.unsplash.com/400x300/?capetown" }
         ];
 
-        // Initialize map
-        const map = L.map('map').setView([20, 0], 2);
-        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
-        }).addTo(map);
+        const map = new mapboxgl.Map({
+            container: 'map',
+            style: 'mapbox://styles/mapbox/light-v10',
+            center: [0, 20],
+            zoom: 1.5
+        });
 
-        // Add markers and create place cards
+        map.on('load', function () {
+            // Add a source and layer displaying a point which will be animated in a circle.
+            map.addSource('route', {
+                'type': 'geojson',
+                'data': {
+                    'type': 'Feature',
+                    'properties': {},
+                    'geometry': {
+                        'type': 'LineString',
+                        'coordinates': places.map(place => place.coordinates)
+                    }
+                }
+            });
+
+            map.addLayer({
+                'id': 'route',
+                'type': 'line',
+                'source': 'route',
+                'layout': {
+                    'line-join': 'round',
+                    'line-cap': 'round'
+                },
+                'paint': {
+                    'line-color': '#3498db',
+                    'line-width': 3,
+                    'line-dasharray': [0, 4, 3]
+                }
+            });
+
+            // Add markers and popups
+            places.forEach((place, index) => {
+                const el = document.createElement('div');
+                el.className = 'marker';
+                el.style.backgroundImage = `url(https://placekitten.com/g/${40 + index * 2}/${40 + index * 2})`;
+                el.style.width = '40px';
+                el.style.height = '40px';
+                el.style.backgroundSize = '100%';
+                el.style.borderRadius = '50%';
+                el.style.border = '2px solid #3498db';
+
+                new mapboxgl.Marker(el)
+                    .setLngLat(place.coordinates)
+                    .setPopup(new mapboxgl.Popup().setHTML(`<h3>${place.name}</h3><p>${place.description}</p>`))
+                    .addTo(map);
+            });
+
+            // Animate the route line
+            let step = 0;
+            const animateLine = () => {
+                const lineLength = turf.lineDistance(map.getSource('route')._data);
+                const steps = 500;
+                
+                step = (step + 1) % steps;
+                
+                const alongRoute = turf.along(map.getSource('route')._data, lineLength * step / steps).geometry.coordinates;
+                
+                map.getSource('route').setData({
+                    'type': 'Feature',
+                    'properties': {},
+                    'geometry': {
+                        'type': 'LineString',
+                        'coordinates': places.map(place => place.coordinates).slice(0, Math.ceil(places.length * step / steps))
+                    }
+                });
+                
+                requestAnimationFrame(animateLine);
+            };
+            
+            animateLine();
+        });
+
+        // Create place cards
         const placeGrid = document.getElementById('placeGrid');
-        places.forEach(place => {
-            // Add marker to map
-            L.marker([place.lat, place.lon]).addTo(map)
-                .bindPopup(`<b>${place.name}</b><br>${place.description}`);
-
-            // Create place card
+        places.forEach((place, index) => {
             const card = document.createElement('div');
             card.className = 'place-card';
             card.innerHTML = `
@@ -110,9 +184,16 @@
             `;
             placeGrid.appendChild(card);
 
-            // Add click event to center map on this place
             card.addEventListener('click', () => {
-                map.setView([place.lat, place.lon], 10);
+                map.flyTo({
+                    center: place.coordinates,
+                    zoom: 9,
+                    speed: 0.8,
+                    curve: 1,
+                    easing(t) {
+                        return t;
+                    }
+                });
             });
         });
     </script>
