@@ -25,11 +25,16 @@
         }
         h1 {
             margin: 0;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 2.5rem;
+            letter-spacing: 2px;
         }
         #map {
             height: 500px;
             width: 100%;
             margin-bottom: 2rem;
+            border: 2px solid #3498db;
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
         }
         .container {
             max-width: 1200px;
@@ -54,7 +59,8 @@
         }
         .place-image {
             width: 100%;
-            height: 200px;
+            height: auto;
+            max-height: 200px;
             object-fit: cover;
         }
         .place-info {
@@ -63,6 +69,7 @@
         .place-name {
             margin: 0 0 0.5rem 0;
             font-size: 1.2rem;
+            color: #3498db;
         }
         .place-description {
             margin: 0;
@@ -95,13 +102,12 @@
 
         const map = new mapboxgl.Map({
             container: 'map',
-            style: 'mapbox://styles/mapbox/light-v10',
+            style: 'mapbox://styles/mapbox/streets-v11',
             center: [0, 20],
             zoom: 1.5
         });
 
         map.on('load', async function () {
-            // Geocode all place names
             const geocodedPlaces = await Promise.all(places.map(async place => {
                 const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(place.name)}.json?access_token=${mapboxgl.accessToken}`);
                 const data = await response.json();
@@ -109,7 +115,8 @@
                 return { ...place, coordinates: [lon, lat] };
             }));
 
-            // Add a source and layer displaying a point which will be animated in a circle.
+            const lineCoordinates = geocodedPlaces.map(place => place.coordinates);
+
             map.addSource('route', {
                 'type': 'geojson',
                 'data': {
@@ -117,7 +124,7 @@
                     'properties': {},
                     'geometry': {
                         'type': 'LineString',
-                        'coordinates': geocodedPlaces.map(place => place.coordinates)
+                        'coordinates': lineCoordinates
                     }
                 }
             });
@@ -133,11 +140,34 @@
                 'paint': {
                     'line-color': '#3498db',
                     'line-width': 3,
-                    'line-dasharray': [0, 4, 3]
+                    'line-dasharray': [2, 4]
                 }
             });
 
-            // Add markers and popups
+            const arc = [];
+
+            for (let i = 0; i < lineCoordinates.length - 1; i++) {
+                const start = lineCoordinates[i];
+                const end = lineCoordinates[i + 1];
+                const interpolated = turf.bezierSpline({
+                    type: 'Feature',
+                    geometry: {
+                        type: 'LineString',
+                        coordinates: [start, end]
+                    }
+                });
+                arc.push(...interpolated.geometry.coordinates);
+            }
+
+            map.getSource('route').setData({
+                'type': 'Feature',
+                'properties': {},
+                'geometry': {
+                    'type': 'LineString',
+                    'coordinates': arc
+                }
+            });
+
             geocodedPlaces.forEach((place, index) => {
                 const el = document.createElement('div');
                 el.className = 'marker';
@@ -154,33 +184,8 @@
                     .addTo(map);
             });
 
-            // Animate the route line
-            let step = 0;
-            const animateLine = () => {
-                const lineLength = turf.lineDistance(map.getSource('route')._data);
-                const steps = 500;
-                
-                step = (step + 1) % steps;
-                
-                const alongRoute = turf.along(map.getSource('route')._data, lineLength * step / steps).geometry.coordinates;
-                
-                map.getSource('route').setData({
-                    'type': 'Feature',
-                    'properties': {},
-                    'geometry': {
-                        'type': 'LineString',
-                        'coordinates': geocodedPlaces.map(place => place.coordinates).slice(0, Math.ceil(geocodedPlaces.length * step / steps))
-                    }
-                });
-                
-                requestAnimationFrame(animateLine);
-            };
-            
-            animateLine();
-
-            // Create place cards
             const placeGrid = document.getElementById('placeGrid');
-            geocodedPlaces.forEach((place, index) => {
+            geocodedPlaces.forEach(place => {
                 const card = document.createElement('div');
                 card.className = 'place-card';
                 card.innerHTML = `
