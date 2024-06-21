@@ -4,32 +4,65 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>My Travel Adventures</title>
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.css">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
     <style>
         body {
             font-family: Arial, sans-serif;
-            line-height: 1.6;
             margin: 0;
             padding: 0;
+            background-color: #f0f0f0;
         }
         header {
-            background-color: #333;
-            color: #fff;
+            background-color: #3498db;
+            color: white;
             text-align: center;
             padding: 1rem;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
         }
-        #travel-map {
+        h1 {
+            margin: 0;
+        }
+        #map {
             height: 400px;
             width: 100%;
+            margin-bottom: 2rem;
         }
-        #travel-list {
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
             padding: 2rem;
         }
-        .place-item {
-            margin-bottom: 1rem;
+        .place-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            gap: 2rem;
+        }
+        .place-card {
+            background-color: white;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+            transition: transform 0.3s ease;
+        }
+        .place-card:hover {
+            transform: translateY(-5px);
+        }
+        .place-image {
+            width: 100%;
+            height: 200px;
+            object-fit: cover;
+        }
+        .place-info {
             padding: 1rem;
-            background-color: #f4f4f4;
-            border-radius: 5px;
+        }
+        .place-name {
+            margin: 0 0 0.5rem 0;
+            font-size: 1.2rem;
+        }
+        .place-description {
+            margin: 0;
+            color: #666;
         }
     </style>
 </head>
@@ -37,39 +70,50 @@
     <header>
         <h1>My Travel Adventures</h1>
     </header>
-    <main id="travel-map"></main>
-    <section id="travel-list"></section>
+    <div class="container">
+        <div id="map"></div>
+        <div class="place-grid" id="placeGrid"></div>
+    </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.7.1/leaflet.min.js"></script>
     <script>
-        // Initialize the map
-        const map = L.map('travel-map').setView([0, 0], 2);
+        const places = [
+            { name: "Paris, France", lat: 48.8566, lon: 2.3522, description: "The City of Light", image: "https://source.unsplash.com/400x300/?paris" },
+            { name: "Tokyo, Japan", lat: 35.6762, lon: 139.6503, description: "A blend of the ultramodern and the traditional", image: "https://source.unsplash.com/400x300/?tokyo" },
+            { name: "New York City, USA", lat: 40.7128, lon: -74.0060, description: "The Big Apple", image: "https://source.unsplash.com/400x300/?newyork" },
+            { name: "Sydney, Australia", lat: -33.8688, lon: 151.2093, description: "Harbor city with iconic landmarks", image: "https://source.unsplash.com/400x300/?sydney" },
+            { name: "Rio de Janeiro, Brazil", lat: -22.9068, lon: -43.1729, description: "Cidade Maravilhosa", image: "https://source.unsplash.com/400x300/?rio" },
+            { name: "Cape Town, South Africa", lat: -33.9249, lon: 18.4241, description: "The Mother City", image: "https://source.unsplash.com/400x300/?capetown" }
+        ];
 
-        // Add the OpenStreetMap tiles
+        // Initialize map
+        const map = L.map('map').setView([20, 0], 2);
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
             attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
         }).addTo(map);
 
-        // Sample data of places visited
-        const places = [
-            { name: "Paris, France", lat: 48.8566, lon: 2.3522 },
-            { name: "Tokyo, Japan", lat: 35.6762, lon: 139.6503 },
-            { name: "New York City, USA", lat: 40.7128, lon: -74.0060 }
-        ];
-
-        // Add markers to the map and create list items
-        const travelList = document.getElementById('travel-list');
-
+        // Add markers and create place cards
+        const placeGrid = document.getElementById('placeGrid');
         places.forEach(place => {
-            // Add marker to the map
+            // Add marker to map
             L.marker([place.lat, place.lon]).addTo(map)
-                .bindPopup(place.name);
+                .bindPopup(`<b>${place.name}</b><br>${place.description}`);
 
-            // Create list item
-            const listItem = document.createElement('div');
-            listItem.className = 'place-item';
-            listItem.textContent = place.name;
-            travelList.appendChild(listItem);
+            // Create place card
+            const card = document.createElement('div');
+            card.className = 'place-card';
+            card.innerHTML = `
+                <img src="${place.image}" alt="${place.name}" class="place-image">
+                <div class="place-info">
+                    <h2 class="place-name">${place.name}</h2>
+                    <p class="place-description">${place.description}</p>
+                </div>
+            `;
+            placeGrid.appendChild(card);
+
+            // Add click event to center map on this place
+            card.addEventListener('click', () => {
+                map.setView([place.lat, place.lon], 10);
+            });
         });
     </script>
 </body>
