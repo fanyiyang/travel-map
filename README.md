@@ -1,4 +1,6 @@
 # My Travel Adventures
+## Example Outlook:
+<img width="972" alt="image" src="https://github.com/user-attachments/assets/57dc9fb4-a673-48b7-95a0-be569561524d" />
 
 ## Overview
 
