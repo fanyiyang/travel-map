@@ -40,7 +40,7 @@
             height: 65vh;
             min-height: 400px;
             width: 100%;
-            margin-bottom: 2rem;
+            margin-bottom: 1.5rem;
             border-radius: 12px;
             box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
@@ -48,6 +48,30 @@
             max-width: 1200px;
             margin: 0 auto;
             padding: 2rem 1rem;
+        }
+        .filter-bar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 1.5rem;
+        }
+        .chip {
+            border: 1px solid #c5d4e0;
+            background: white;
+            color: #1e5799;
+            border-radius: 999px;
+            padding: 0.35rem 1rem;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        .chip:hover {
+            border-color: #3498db;
+        }
+        .chip.active {
+            background: #3498db;
+            border-color: #3498db;
+            color: white;
         }
         .place-grid {
             display: grid;
@@ -62,6 +86,7 @@
             transition: transform 0.25s ease, box-shadow 0.25s ease;
             cursor: pointer;
             border: 2px solid transparent;
+            position: relative;
         }
         .place-card:hover {
             transform: translateY(-5px);
@@ -77,6 +102,16 @@
             display: block;
             background-color: #e0e6ea;
         }
+        .photo-badge {
+            position: absolute;
+            top: 0.6rem;
+            right: 0.6rem;
+            background: rgba(0,0,0,0.55);
+            color: white;
+            font-size: 0.75rem;
+            border-radius: 999px;
+            padding: 0.15rem 0.55rem;
+        }
         .place-info {
             padding: 1rem;
         }
@@ -84,6 +119,16 @@
             margin: 0 0 0.5rem 0;
             font-size: 1.15rem;
             color: #1e5799;
+        }
+        .year-badge {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #7a8a99;
+            background: #eef3f7;
+            border-radius: 999px;
+            padding: 0.1rem 0.5rem;
+            margin-left: 0.4rem;
+            vertical-align: middle;
         }
         .place-description {
             margin: 0;
@@ -109,10 +154,35 @@
         }
         .popup-image {
             width: 100%;
-            height: 120px;
+            height: 130px;
             object-fit: cover;
             border-radius: 6px;
             display: block;
+            background-color: #e0e6ea;
+        }
+        .popup-nav {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-top: 0.35rem;
+        }
+        .popup-nav button {
+            border: none;
+            background: #eef3f7;
+            color: #1e5799;
+            border-radius: 6px;
+            width: 2rem;
+            height: 1.6rem;
+            font-size: 0.9rem;
+            font-weight: 700;
+            cursor: pointer;
+        }
+        .popup-nav button:hover {
+            background: #d9e6f0;
+        }
+        .popup-counter {
+            font-size: 0.8rem;
+            color: #7a8a99;
         }
         .popup-title {
             margin: 0.5rem 0 0.25rem;
@@ -141,31 +211,45 @@
     </header>
     <div class="container">
         <div id="map"></div>
+        <div class="filter-bar" id="filterBar"></div>
         <div class="place-grid" id="placeGrid"></div>
     </div>
     <footer>Click a marker or a card to explore each destination. · <a href="add.html">Add a destination</a></footer>
 
     <script src="places.js"></script>
     <script>
-        mapboxgl.accessToken = 'pk.eyJ1IjoiZmFueWl5YW5nMjMzIiwiYSI6ImNseG56dHp1dTA5cmQyanB4MDlyNXB5YjAifQ.dXU4lx12g2LDUhENBR_UGA';
-
         // Destinations live in places.js; add new ones with add.html.
-        const places = window.PLACES || [];
+        // Accept both the current schema ({images: [...]}) and the old one ({image: "..."}).
+        const normalized = (window.PLACES || []).map(p => ({
+            ...p,
+            images: p.images || (p.image ? [p.image] : [])
+        }));
+
+        // Timeline order: dated entries sort by date; undated entries inherit the
+        // last seen date so they keep their position in the hand-ordered list.
+        let carry = '';
+        const places = normalized
+            .map((p, i) => { if (p.date) carry = p.date; return { p, key: carry, i }; })
+            .sort((a, b) => (a.key < b.key ? -1 : a.key > b.key ? 1 : a.i - b.i))
+            .map(k => k.p);
+
         if (!places.length) {
             document.getElementById('map').textContent = 'No destinations found — places.js failed to load.';
         }
-
         document.getElementById('subtitle').textContent = `${places.length} destinations and counting.`;
 
-        // Render the photo cards first so they appear even if Mapbox fails to load.
+        // --- Photo cards (render before any map work so they never depend on Mapbox) ---
         const placeGrid = document.getElementById('placeGrid');
         const cards = places.map(place => {
             const card = document.createElement('div');
             card.className = 'place-card';
+            const year = place.date ? `<span class="year-badge">${place.date.slice(0, 4)}</span>` : '';
+            const badge = place.images.length > 1 ? `<span class="photo-badge">${place.images.length} photos</span>` : '';
             card.innerHTML = `
-                <img src="${place.image}" alt="${place.name}" class="place-image" loading="lazy">
+                <img src="${place.images[0] || ''}" alt="${place.name}" class="place-image" loading="lazy">
+                ${badge}
                 <div class="place-info">
-                    <h2 class="place-name">${place.name}</h2>
+                    <h2 class="place-name">${place.name}${year}</h2>
                     <p class="place-description">${place.description}</p>
                 </div>
             `;
@@ -173,93 +257,157 @@
             return card;
         });
 
+        // --- Map ---
+        let map = null;
+        const markers = [];
         if (typeof mapboxgl === 'undefined') {
             document.getElementById('map').textContent = 'Map could not be loaded. Check your network connection.';
-            throw new Error('mapbox-gl failed to load');
-        }
+        } else {
+            mapboxgl.accessToken = 'pk.eyJ1IjoiZmFueWl5YW5nMjMzIiwiYSI6ImNseG56dHp1dTA5cmQyanB4MDlyNXB5YjAifQ.dXU4lx12g2LDUhENBR_UGA';
+            map = new mapboxgl.Map({
+                container: 'map',
+                style: 'mapbox://styles/mapbox/streets-v11',
+                center: [0, 25],
+                zoom: 1.5
+            });
+            map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+            map.addControl(new mapboxgl.FullscreenControl(), 'top-right');
 
-        const map = new mapboxgl.Map({
-            container: 'map',
-            style: 'mapbox://styles/mapbox/streets-v11',
-            center: [0, 25],
-            zoom: 1.5
-        });
+            // Popup content with a photo carousel, built on first open so the
+            // images aren't all fetched up front.
+            function popupContent(place) {
+                const wrap = document.createElement('div');
+                const img = document.createElement('img');
+                img.className = 'popup-image';
+                img.alt = place.name;
+                wrap.appendChild(img);
 
-        map.addControl(new mapboxgl.NavigationControl(), 'top-right');
-        map.addControl(new mapboxgl.FullscreenControl(), 'top-right');
-
-        function popupHTML(place) {
-            return `
-                <img src="${place.image}" alt="${place.name}" class="popup-image">
-                <h3 class="popup-title">${place.name}</h3>
-                <p class="popup-description">${place.description}</p>
-            `;
-        }
-
-        const markers = places.map(place => {
-            const el = document.createElement('div');
-            el.className = 'marker';
-            el.style.backgroundImage = `url("${encodeURI(place.image)}")`;
-            el.setAttribute('role', 'button');
-            el.setAttribute('aria-label', place.name);
-
-            return new mapboxgl.Marker(el)
-                .setLngLat(place.coordinates)
-                .setPopup(new mapboxgl.Popup({ offset: 28 }).setHTML(popupHTML(place)))
-                .addTo(map);
-        });
-
-        map.on('load', () => {
-            if (typeof turf === 'undefined') return; // skip the route line if Turf failed to load
-            // Great-circle arcs between consecutive stops; MultiLineString keeps
-            // antimeridian-crossing segments (e.g. across the Pacific) intact.
-            const segments = [];
-            for (let i = 0; i < places.length - 1; i++) {
-                const arc = turf.greatCircle(
-                    turf.point(places[i].coordinates),
-                    turf.point(places[i + 1].coordinates),
-                    { npoints: 100 }
-                );
-                if (arc.geometry.type === 'LineString') {
-                    segments.push(arc.geometry.coordinates);
-                } else {
-                    segments.push(...arc.geometry.coordinates);
+                let idx = 0;
+                const show = i => {
+                    idx = (i + place.images.length) % place.images.length;
+                    img.src = place.images[idx];
+                    if (counter) counter.textContent = `${idx + 1} / ${place.images.length}`;
+                };
+                let counter = null;
+                if (place.images.length > 1) {
+                    const nav = document.createElement('div');
+                    nav.className = 'popup-nav';
+                    const prev = document.createElement('button');
+                    prev.textContent = '‹';
+                    prev.addEventListener('click', () => show(idx - 1));
+                    const next = document.createElement('button');
+                    next.textContent = '›';
+                    next.addEventListener('click', () => show(idx + 1));
+                    counter = document.createElement('span');
+                    counter.className = 'popup-counter';
+                    nav.append(prev, counter, next);
+                    wrap.appendChild(nav);
                 }
+                show(0);
+
+                const title = document.createElement('h3');
+                title.className = 'popup-title';
+                title.textContent = place.name + (place.date ? ` · ${place.date.slice(0, 4)}` : '');
+                const desc = document.createElement('p');
+                desc.className = 'popup-description';
+                desc.textContent = place.description;
+                wrap.append(title, desc);
+                return wrap;
             }
 
-            map.addSource('route', {
-                type: 'geojson',
-                data: {
-                    type: 'Feature',
-                    properties: {},
-                    geometry: { type: 'MultiLineString', coordinates: segments }
-                }
+            places.forEach(place => {
+                const el = document.createElement('div');
+                el.className = 'marker';
+                el.style.backgroundImage = `url("${encodeURI(place.images[0] || '')}")`;
+                el.setAttribute('role', 'button');
+                el.setAttribute('aria-label', place.name);
+
+                const popup = new mapboxgl.Popup({ offset: 28 });
+                let built = false;
+                popup.on('open', () => {
+                    if (!built) { popup.setDOMContent(popupContent(place)); built = true; }
+                });
+
+                markers.push(new mapboxgl.Marker(el)
+                    .setLngLat(place.coordinates)
+                    .setPopup(popup)
+                    .addTo(map));
             });
 
-            map.addLayer({
-                id: 'route',
-                type: 'line',
-                source: 'route',
-                layout: { 'line-join': 'round', 'line-cap': 'round' },
-                paint: {
-                    'line-color': '#3498db',
-                    'line-width': 2.5,
-                    'line-dasharray': [2, 3]
+            map.on('load', () => {
+                if (typeof turf === 'undefined') return; // skip the route line if Turf failed to load
+                // Great-circle arcs between consecutive stops; MultiLineString keeps
+                // antimeridian-crossing segments (e.g. across the Pacific) intact.
+                const segments = [];
+                for (let i = 0; i < places.length - 1; i++) {
+                    const arc = turf.greatCircle(
+                        turf.point(places[i].coordinates),
+                        turf.point(places[i + 1].coordinates),
+                        { npoints: 100 }
+                    );
+                    if (arc.geometry.type === 'LineString') {
+                        segments.push(arc.geometry.coordinates);
+                    } else {
+                        segments.push(...arc.geometry.coordinates);
+                    }
                 }
+                map.addSource('route', {
+                    type: 'geojson',
+                    data: {
+                        type: 'Feature',
+                        properties: {},
+                        geometry: { type: 'MultiLineString', coordinates: segments }
+                    }
+                });
+                map.addLayer({
+                    id: 'route',
+                    type: 'line',
+                    source: 'route',
+                    layout: { 'line-join': 'round', 'line-cap': 'round' },
+                    paint: {
+                        'line-color': '#3498db',
+                        'line-width': 2.5,
+                        'line-dasharray': [2, 3]
+                    }
+                });
             });
-        });
+        }
 
+        // --- Card interactions ---
         places.forEach((place, index) => {
-            const card = cards[index];
-            card.addEventListener('click', () => {
+            cards[index].addEventListener('click', () => {
                 document.querySelectorAll('.place-card.active').forEach(c => c.classList.remove('active'));
-                card.classList.add('active');
+                cards[index].classList.add('active');
+                if (!map) return;
                 markers.forEach(m => { if (m.getPopup().isOpen()) m.togglePopup(); });
                 map.flyTo({ center: place.coordinates, zoom: 9, speed: 1.2 });
                 markers[index].togglePopup();
                 map.getContainer().scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             });
         });
+
+        // --- Year filter ---
+        const years = [...new Set(places.filter(p => p.date).map(p => p.date.slice(0, 4)))].sort();
+        if (years.length > 1) {
+            const bar = document.getElementById('filterBar');
+            const applyFilter = year => {
+                bar.querySelectorAll('.chip').forEach(c => c.classList.toggle('active', c.dataset.year === year));
+                places.forEach((p, i) => {
+                    const visible = year === 'all' || (p.date && p.date.slice(0, 4) === year);
+                    cards[i].style.display = visible ? '' : 'none';
+                    if (markers[i]) markers[i].getElement().style.display = visible ? '' : 'none';
+                });
+            };
+            ['all', ...years].forEach(y => {
+                const chip = document.createElement('button');
+                chip.className = 'chip';
+                chip.dataset.year = y;
+                chip.textContent = y === 'all' ? 'All' : y;
+                chip.addEventListener('click', () => applyFilter(y));
+                bar.appendChild(chip);
+            });
+            applyFilter('all');
+        }
     </script>
 </body>
 </html>
