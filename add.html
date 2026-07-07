@@ -1,0 +1,334 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex">
+    <title>Add a Destination — My Travel Adventures</title>
+    <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
+    <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.min.js"></script>
+    <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.css" type="text/css">
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            margin: 0;
+            background-color: #f4f6f8;
+            color: #2c3e50;
+        }
+        header {
+            background: linear-gradient(135deg, #1e5799 0%, #3498db 100%);
+            color: white;
+            text-align: center;
+            padding: 1.5rem 1rem;
+        }
+        header h1 { margin: 0; font-size: 1.6rem; }
+        header a { color: #cfe8ff; font-size: 0.9rem; }
+        .container { max-width: 760px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+        .step {
+            background: white;
+            border-radius: 12px;
+            padding: 1.25rem 1.5rem;
+            margin-bottom: 1.25rem;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+        }
+        .step h2 { margin: 0 0 0.75rem; font-size: 1.1rem; color: #1e5799; }
+        label { display: block; font-size: 0.85rem; font-weight: 600; margin: 0.75rem 0 0.25rem; }
+        input[type="text"], input[type="password"] {
+            width: 100%;
+            padding: 0.55rem 0.7rem;
+            border: 1px solid #ccd5dc;
+            border-radius: 8px;
+            font-size: 0.95rem;
+        }
+        input:focus { outline: 2px solid #3498db; border-color: transparent; }
+        .hint { font-size: 0.8rem; color: #7a8a99; margin-top: 0.25rem; }
+        #pickMap { height: 320px; border-radius: 8px; margin-top: 0.5rem; }
+        #photoPreview {
+            display: none;
+            width: 120px;
+            height: 120px;
+            object-fit: cover;
+            border-radius: 50%;
+            border: 3px solid #3498db;
+            margin-top: 0.75rem;
+        }
+        .coords { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.9rem; color: #555; margin-top: 0.5rem; }
+        .row { display: flex; gap: 1rem; }
+        .row > div { flex: 1; }
+        button {
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 0.7rem 1.4rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            margin-top: 1rem;
+        }
+        button:hover { background: #1e5799; }
+        button:disabled { background: #a8c6dd; cursor: not-allowed; }
+        button.secondary { background: #eef3f7; color: #1e5799; }
+        #status { margin-top: 0.75rem; font-size: 0.9rem; white-space: pre-line; }
+        #status.ok { color: #1e7e34; }
+        #status.err { color: #c0392b; }
+        pre {
+            background: #f0f4f7;
+            border-radius: 8px;
+            padding: 0.75rem;
+            font-size: 0.8rem;
+            overflow-x: auto;
+            margin: 0.5rem 0 0;
+        }
+        details { margin-top: 1rem; }
+        summary { cursor: pointer; color: #1e5799; font-weight: 600; font-size: 0.95rem; }
+        .checkbox-label { display: flex; align-items: center; gap: 0.4rem; font-weight: 400; font-size: 0.85rem; margin-top: 0.5rem; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Add a Destination</h1>
+        <a href="index.html">← back to the map</a>
+    </header>
+    <div class="container">
+        <div class="step">
+            <h2>1 · Photo</h2>
+            <input type="file" id="photoInput" accept="image/*">
+            <img id="photoPreview" alt="Photo preview">
+            <label for="photoName">Filename in the repository</label>
+            <input type="text" id="photoName" placeholder="e.g. kyoto.jpg">
+            <p class="hint">Auto-filled from the chosen file; tidy it up if you like. Tip: photos under ~1&nbsp;MB keep the page fast.</p>
+        </div>
+
+        <div class="step">
+            <h2>2 · Details</h2>
+            <label for="placeName">Place name</label>
+            <input type="text" id="placeName" placeholder="e.g. Kyoto, Japan">
+            <label for="placeDesc">Short note</label>
+            <input type="text" id="placeDesc" placeholder="e.g. Temples and tea">
+        </div>
+
+        <div class="step">
+            <h2>3 · Location</h2>
+            <p class="hint">Search for the place or click the map; drag the pin to fine-tune.</p>
+            <div id="pickMap"></div>
+            <div class="coords" id="coordsOut">No location selected yet.</div>
+        </div>
+
+        <div class="step">
+            <h2>4 · Publish</h2>
+            <p class="hint">Publishes straight to GitHub from your browser: it uploads the photo and appends the entry to <code>places.js</code>. Needs a
+            <a href="https://github.com/settings/personal-access-tokens/new" target="_blank" rel="noopener">fine-grained personal access token</a>
+            for this repository with <strong>Contents: Read and write</strong> permission.</p>
+            <div class="row">
+                <div>
+                    <label for="ghRepo">Repository</label>
+                    <input type="text" id="ghRepo" value="fanyiyang/travel-map">
+                </div>
+                <div>
+                    <label for="ghBranch">Branch</label>
+                    <input type="text" id="ghBranch" value="main">
+                </div>
+            </div>
+            <label for="ghToken">GitHub token</label>
+            <input type="password" id="ghToken" placeholder="github_pat_…" autocomplete="off">
+            <label class="checkbox-label"><input type="checkbox" id="rememberToken"> Remember token in this browser</label>
+            <button id="publishBtn">Publish to GitHub</button>
+            <div id="status"></div>
+            <details>
+                <summary>Prefer to do it manually?</summary>
+                <p class="hint">Upload the photo to the repository yourself, then add this line to the array in <code>places.js</code> (before the closing <code>];</code>):</p>
+                <pre id="snippet">Fill in the steps above to generate the snippet.</pre>
+                <button class="secondary" id="copyBtn">Copy snippet</button>
+            </details>
+        </div>
+    </div>
+
+    <script>
+        mapboxgl.accessToken = 'pk.eyJ1IjoiZmFueWl5YW5nMjMzIiwiYSI6ImNseG56dHp1dTA5cmQyanB4MDlyNXB5YjAifQ.dXU4lx12g2LDUhENBR_UGA';
+
+        const $ = id => document.getElementById(id);
+        let coordinates = null;
+        let photoFile = null;
+
+        // --- Location picker ---
+        const map = new mapboxgl.Map({
+            container: 'pickMap',
+            style: 'mapbox://styles/mapbox/streets-v11',
+            center: [0, 25],
+            zoom: 1
+        });
+        map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+        const geocoder = new MapboxGeocoder({ accessToken: mapboxgl.accessToken, mapboxgl, marker: false });
+        map.addControl(geocoder, 'top-left');
+
+        const pin = new mapboxgl.Marker({ draggable: true, color: '#3498db' });
+        function setPin(lngLat, fromGeocoder) {
+            coordinates = [Number(lngLat[0].toFixed(4)), Number(lngLat[1].toFixed(4))];
+            pin.setLngLat(coordinates).addTo(map);
+            $('coordsOut').textContent = `longitude ${coordinates[0]}, latitude ${coordinates[1]}`;
+            if (fromGeocoder) map.flyTo({ center: coordinates, zoom: 8 });
+            updateSnippet();
+        }
+        map.on('click', e => setPin([e.lngLat.lng, e.lngLat.lat]));
+        pin.on('dragend', () => { const p = pin.getLngLat(); setPin([p.lng, p.lat]); });
+        geocoder.on('result', e => {
+            setPin(e.result.center, true);
+            if (!$('placeName').value) { $('placeName').value = e.result.place_name; updateSnippet(); }
+        });
+
+        // --- Photo ---
+        $('photoInput').addEventListener('change', () => {
+            photoFile = $('photoInput').files[0] || null;
+            if (!photoFile) return;
+            $('photoName').value = photoFile.name.replace(/\s+/g, '-').replace(/[^\w.\-]/g, '');
+            $('photoPreview').src = URL.createObjectURL(photoFile);
+            $('photoPreview').style.display = 'block';
+            updateSnippet();
+        });
+
+        // --- Snippet ---
+        function currentEntry() {
+            return {
+                name: $('placeName').value.trim(),
+                description: $('placeDesc').value.trim(),
+                image: $('photoName').value.trim(),
+                coordinates
+            };
+        }
+        function updateSnippet() {
+            const e = currentEntry();
+            $('snippet').textContent = (e.name && e.image && coordinates)
+                ? '  ' + JSON.stringify(e) + ','
+                : 'Fill in the steps above to generate the snippet.';
+        }
+        ['placeName', 'placeDesc', 'photoName'].forEach(id => $(id).addEventListener('input', updateSnippet));
+        $('copyBtn').addEventListener('click', () => {
+            navigator.clipboard.writeText($('snippet').textContent);
+            $('copyBtn').textContent = 'Copied!';
+            setTimeout(() => { $('copyBtn').textContent = 'Copy snippet'; }, 1500);
+        });
+
+        // --- GitHub settings persistence ---
+        $('ghRepo').value = localStorage.getItem('tm_repo') || $('ghRepo').value;
+        $('ghBranch').value = localStorage.getItem('tm_branch') || $('ghBranch').value;
+        if (localStorage.getItem('tm_token')) {
+            $('ghToken').value = localStorage.getItem('tm_token');
+            $('rememberToken').checked = true;
+        }
+
+        // --- Publish ---
+        const PLACES_HEADER =
+`// Travel destinations shown on the map, in trip order.
+// Coordinates are [longitude, latitude].
+// Add new entries with add.html (recommended) or edit by hand —
+// keep the array valid JSON (double quotes, no trailing comment lines inside).
+window.PLACES = [
+`;
+
+        function b64encodeText(text) {
+            const bytes = new TextEncoder().encode(text);
+            let bin = '';
+            bytes.forEach(b => { bin += String.fromCharCode(b); });
+            return btoa(bin);
+        }
+        function b64decodeText(b64) {
+            const bin = atob(b64.replace(/\n/g, ''));
+            const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
+            return new TextDecoder().decode(bytes);
+        }
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const r = new FileReader();
+                r.onload = () => resolve(r.result.split(',')[1]);
+                r.onerror = reject;
+                r.readAsDataURL(file);
+            });
+        }
+
+        async function gh(path, token, opts = {}) {
+            const res = await fetch(`https://api.github.com${path}`, {
+                ...opts,
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/vnd.github+json',
+                    'X-GitHub-Api-Version': '2022-11-28',
+                    ...(opts.headers || {})
+                }
+            });
+            const body = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(body.message || `GitHub API error ${res.status}`);
+            return body;
+        }
+
+        function setStatus(msg, cls) {
+            $('status').textContent = msg;
+            $('status').className = cls || '';
+        }
+
+        $('publishBtn').addEventListener('click', async () => {
+            const entry = currentEntry();
+            const repo = $('ghRepo').value.trim();
+            const branch = $('ghBranch').value.trim() || 'main';
+            const token = $('ghToken').value.trim();
+
+            if (!photoFile) return setStatus('Choose a photo first (step 1).', 'err');
+            if (!entry.image) return setStatus('Give the photo a filename (step 1).', 'err');
+            if (!entry.name) return setStatus('Enter the place name (step 2).', 'err');
+            if (!coordinates) return setStatus('Pick the location on the map (step 3).', 'err');
+            if (!/^[^/]+\/[^/]+$/.test(repo)) return setStatus('Repository must look like owner/name.', 'err');
+            if (!token) return setStatus('Paste your GitHub token.', 'err');
+
+            localStorage.setItem('tm_repo', repo);
+            localStorage.setItem('tm_branch', branch);
+            if ($('rememberToken').checked) localStorage.setItem('tm_token', token);
+            else localStorage.removeItem('tm_token');
+
+            $('publishBtn').disabled = true;
+            try {
+                setStatus('Reading current places.js…');
+                const cur = await gh(`/repos/${repo}/contents/places.js?ref=${encodeURIComponent(branch)}`, token);
+                const text = b64decodeText(cur.content);
+                const list = JSON.parse(text.slice(text.indexOf('['), text.lastIndexOf(']') + 1));
+
+                if (list.some(p => p.image === entry.image)) {
+                    throw new Error(`A destination already uses the filename "${entry.image}" — pick another name.`);
+                }
+                list.push(entry);
+                const newText = PLACES_HEADER
+                    + list.map(p => '  ' + JSON.stringify(p)).join(',\n')
+                    + '\n];\n';
+
+                setStatus('Uploading photo…');
+                await gh(`/repos/${repo}/contents/${encodeURIComponent(entry.image)}`, token, {
+                    method: 'PUT',
+                    body: JSON.stringify({
+                        message: `Add photo for ${entry.name}`,
+                        content: await fileToBase64(photoFile),
+                        branch
+                    })
+                });
+
+                setStatus('Updating places.js…');
+                await gh(`/repos/${repo}/contents/places.js`, token, {
+                    method: 'PUT',
+                    body: JSON.stringify({
+                        message: `Add ${entry.name} to travel map`,
+                        content: b64encodeText(newText),
+                        sha: cur.sha,
+                        branch
+                    })
+                });
+
+                setStatus(`Published! "${entry.name}" is now in the repository.\nThe live site refreshes in a minute or two once GitHub Pages rebuilds.`, 'ok');
+            } catch (err) {
+                setStatus(`Failed: ${err.message}`, 'err');
+            } finally {
+                $('publishBtn').disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>
