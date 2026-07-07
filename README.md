@@ -22,7 +22,7 @@ Open **[add.html](https://fanyiyang.github.io/travel-map/add.html)** and follow 
 
 1. **Photo** — choose the picture from your computer (a filename is suggested automatically).
 2. **Details** — enter the place name and a short note.
-3. **Location** — search for the place or click the map, then drag the pin to fine-tune.
+3. **Location** — usually filled in automatically from the photo's GPS data, or from the place name; you can also search, click the map, or drag the pin to fine-tune.
 4. **Publish** — paste a GitHub token and click *Publish to GitHub*. The page uploads the photo and appends the entry to `places.js` for you; the live site updates once GitHub Pages rebuilds (a minute or two).
 
 The token needs to be a [fine-grained personal access token](https://github.com/settings/personal-access-tokens/new) scoped to this repository with **Contents: Read and write** permission. Create it once and tick *Remember token in this browser*.

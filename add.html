@@ -112,7 +112,7 @@
 
         <div class="step">
             <h2>3 · Location</h2>
-            <p class="hint">Search for the place or click the map; drag the pin to fine-tune.</p>
+            <p class="hint">Set automatically from the photo's GPS data (when available) or the place name — or search / click the map yourself; drag the pin to fine-tune.</p>
             <div id="pickMap"></div>
             <div class="coords" id="coordsOut">No location selected yet.</div>
         </div>
@@ -153,6 +153,60 @@
         let coordinates = null;
         let photoFile = null;
 
+        // How the current pin was set; higher rank wins so a manual pin is
+        // never overwritten by auto-detection.
+        const SOURCE_RANK = { name: 1, exif: 2, manual: 3 };
+        let coordSource = null;
+
+        // --- EXIF GPS extraction (JPEG only; returns [lon, lat] or null) ---
+        async function readExifGps(file) {
+            try {
+                const buf = await file.slice(0, 262144).arrayBuffer();
+                const view = new DataView(buf);
+                if (view.byteLength < 4 || view.getUint16(0) !== 0xFFD8) return null;
+                let offset = 2;
+                while (offset + 4 < view.byteLength) {
+                    const marker = view.getUint16(offset);
+                    if ((marker & 0xFF00) !== 0xFF00) break;
+                    const size = view.getUint16(offset + 2);
+                    if (marker === 0xFFE1 && view.getUint32(offset + 4) === 0x45786966) {
+                        return parseTiffGps(view, offset + 10);
+                    }
+                    offset += 2 + size;
+                }
+            } catch (e) { /* unreadable EXIF is fine — fall back to manual */ }
+            return null;
+        }
+        function parseTiffGps(view, t) {
+            const little = view.getUint16(t) === 0x4949;
+            const g16 = o => view.getUint16(o, little);
+            const g32 = o => view.getUint32(o, little);
+            const ifd0 = t + g32(t + 4);
+            let gps = null;
+            for (let i = 0, n = g16(ifd0); i < n; i++) {
+                const e = ifd0 + 2 + i * 12;
+                if (g16(e) === 0x8825) gps = t + g32(e + 8);
+            }
+            if (!gps) return null;
+            let latRef, lonRef, lat, lon;
+            const rat = o => g32(o) / g32(o + 4);
+            for (let i = 0, n = g16(gps); i < n; i++) {
+                const e = gps + 2 + i * 12;
+                const tag = g16(e);
+                if (tag === 1) latRef = String.fromCharCode(view.getUint8(e + 8));
+                if (tag === 3) lonRef = String.fromCharCode(view.getUint8(e + 8));
+                if (tag === 2 || tag === 4) {
+                    const vo = t + g32(e + 8);
+                    const d = rat(vo) + rat(vo + 8) / 60 + rat(vo + 16) / 3600;
+                    if (tag === 2) lat = d; else lon = d;
+                }
+            }
+            if (lat == null || lon == null || !isFinite(lat) || !isFinite(lon) || (lat === 0 && lon === 0)) return null;
+            if (latRef === 'S') lat = -lat;
+            if (lonRef === 'W') lon = -lon;
+            return [lon, lat];
+        }
+
         // --- Location picker ---
         const map = new mapboxgl.Map({
             container: 'pickMap',
@@ -165,28 +219,53 @@
         map.addControl(geocoder, 'top-left');
 
         const pin = new mapboxgl.Marker({ draggable: true, color: '#3498db' });
-        function setPin(lngLat, fromGeocoder) {
+        const SOURCE_LABEL = {
+            exif: ' — auto-detected from the photo’s GPS data',
+            name: ' — auto-located from the place name',
+            manual: ''
+        };
+        function setPin(lngLat, source, fly) {
+            if (coordSource && SOURCE_RANK[source] < SOURCE_RANK[coordSource]) return;
+            coordSource = source;
             coordinates = [Number(lngLat[0].toFixed(4)), Number(lngLat[1].toFixed(4))];
             pin.setLngLat(coordinates).addTo(map);
-            $('coordsOut').textContent = `longitude ${coordinates[0]}, latitude ${coordinates[1]}`;
-            if (fromGeocoder) map.flyTo({ center: coordinates, zoom: 8 });
+            $('coordsOut').textContent = `longitude ${coordinates[0]}, latitude ${coordinates[1]}${SOURCE_LABEL[source]}`;
+            if (fly) map.flyTo({ center: coordinates, zoom: 8 });
             updateSnippet();
         }
-        map.on('click', e => setPin([e.lngLat.lng, e.lngLat.lat]));
-        pin.on('dragend', () => { const p = pin.getLngLat(); setPin([p.lng, p.lat]); });
+        map.on('click', e => setPin([e.lngLat.lng, e.lngLat.lat], 'manual'));
+        pin.on('dragend', () => { const p = pin.getLngLat(); setPin([p.lng, p.lat], 'manual'); });
         geocoder.on('result', e => {
-            setPin(e.result.center, true);
+            setPin(e.result.center, 'manual', true);
             if (!$('placeName').value) { $('placeName').value = e.result.place_name; updateSnippet(); }
         });
 
+        // Auto-locate from the typed place name (only until a better source sets the pin).
+        let nameTimer = null;
+        async function geocodeName() {
+            const q = $('placeName').value.trim();
+            if (q.length < 3 || (coordSource && SOURCE_RANK[coordSource] > SOURCE_RANK.name)) return;
+            try {
+                const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(q)}.json?limit=1&access_token=${mapboxgl.accessToken}`);
+                const data = await res.json();
+                if (data.features && data.features.length) setPin(data.features[0].center, 'name', true);
+            } catch (e) { /* offline or rate-limited — user can still pick manually */ }
+        }
+        $('placeName').addEventListener('input', () => {
+            clearTimeout(nameTimer);
+            nameTimer = setTimeout(geocodeName, 800);
+        });
+
         // --- Photo ---
-        $('photoInput').addEventListener('change', () => {
+        $('photoInput').addEventListener('change', async () => {
             photoFile = $('photoInput').files[0] || null;
             if (!photoFile) return;
             $('photoName').value = photoFile.name.replace(/\s+/g, '-').replace(/[^\w.\-]/g, '');
             $('photoPreview').src = URL.createObjectURL(photoFile);
             $('photoPreview').style.display = 'block';
             updateSnippet();
+            const gps = await readExifGps(photoFile);
+            if (gps) setPin(gps, 'exif', true);
         });
 
         // --- Snippet ---
