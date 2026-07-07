@@ -3,224 +3,271 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="An interactive map of my travel adventures around the world.">
     <title>My Travel Adventures</title>
-    <link href='https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.css' rel='stylesheet' />
-    <script src='https://api.mapbox.com/mapbox-gl-js/v2.9.1/mapbox-gl.js'></script>
-    <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.min.js"></script>
-    <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.css" type="text/css">
+    <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
+    <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
     <style>
+        * {
+            box-sizing: border-box;
+        }
         body {
-            font-family: 'Arial', sans-serif;
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             margin: 0;
             padding: 0;
-            background-color: #f0f0f0;
+            background-color: #f4f6f8;
+            color: #2c3e50;
         }
         header {
-            background-color: #3498db;
+            background: linear-gradient(135deg, #1e5799 0%, #3498db 100%);
             color: white;
             text-align: center;
-            padding: 1rem;
-            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            padding: 2rem 1rem 1.5rem;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
         }
         h1 {
             margin: 0;
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 2.5rem;
+            font-size: clamp(1.8rem, 5vw, 2.5rem);
             letter-spacing: 2px;
         }
+        .subtitle {
+            margin: 0.5rem 0 0;
+            opacity: 0.9;
+            font-size: 1rem;
+        }
         #map {
-            height: 500px;
+            height: 65vh;
+            min-height: 400px;
             width: 100%;
             margin-bottom: 2rem;
-            border: 2px solid #3498db;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         }
         .container {
             max-width: 1200px;
             margin: 0 auto;
-            padding: 2rem;
+            padding: 2rem 1rem;
         }
         .place-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-            gap: 2rem;
+            gap: 1.5rem;
         }
         .place-card {
             background-color: white;
-            border-radius: 8px;
+            border-radius: 12px;
             overflow: hidden;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-            transition: transform 0.3s ease;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.08);
+            transition: transform 0.25s ease, box-shadow 0.25s ease;
             cursor: pointer;
+            border: 2px solid transparent;
         }
         .place-card:hover {
             transform: translateY(-5px);
+            box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+        }
+        .place-card.active {
+            border-color: #3498db;
         }
         .place-image {
             width: 100%;
-            height: auto;
-            max-height: 200px;
+            height: 180px;
             object-fit: cover;
+            display: block;
+            background-color: #e0e6ea;
         }
         .place-info {
             padding: 1rem;
         }
         .place-name {
             margin: 0 0 0.5rem 0;
-            font-size: 1.2rem;
-            color: #3498db;
+            font-size: 1.15rem;
+            color: #1e5799;
         }
         .place-description {
             margin: 0;
             color: #666;
+            font-size: 0.95rem;
+        }
+        .marker {
+            width: 44px;
+            height: 44px;
+            background-size: cover;
+            background-position: center;
+            border-radius: 50%;
+            border: 3px solid #fff;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+            cursor: pointer;
+            transition: transform 0.15s ease;
+        }
+        .marker:hover {
+            transform: scale(1.15);
         }
         .mapboxgl-popup {
-            max-width: 200px;
+            max-width: 240px;
+        }
+        .popup-image {
+            width: 100%;
+            height: 120px;
+            object-fit: cover;
+            border-radius: 6px;
+            display: block;
+        }
+        .popup-title {
+            margin: 0.5rem 0 0.25rem;
+            font-size: 1rem;
+        }
+        .popup-description {
+            margin: 0;
+            color: #666;
+            font-size: 0.85rem;
+        }
+        footer {
+            text-align: center;
+            padding: 1.5rem;
+            color: #888;
+            font-size: 0.9rem;
         }
     </style>
 </head>
 <body>
     <header>
         <h1>My Travel Adventures</h1>
+        <p class="subtitle" id="subtitle">Places I've been, mapped.</p>
     </header>
     <div class="container">
         <div id="map"></div>
         <div class="place-grid" id="placeGrid"></div>
     </div>
+    <footer>Click a marker or a card to explore each destination.</footer>
 
     <script>
         mapboxgl.accessToken = 'pk.eyJ1IjoiZmFueWl5YW5nMjMzIiwiYSI6ImNseG56dHp1dTA5cmQyanB4MDlyNXB5YjAifQ.dXU4lx12g2LDUhENBR_UGA';
 
-       const places = [
-            { name: "Hokkaido, Japan", description: "Clean, snow, 北大, pre-covid", image: "https://github.com/fanyiyang/travel-map/blob/main/IMG_20190728_100216.JPG?raw=true" },
-            { name: "Singapore", description: "The City of Light", image: "https://github.com/fanyiyang/fanyiyang.github.io/blob/main/IMG_0135.jpeg?raw=true" },
-            { name: "New York City, USA", description: "$", image: "https://github.com/fanyiyang/travel-map/blob/main/NY.jpeg?raw=true" },
-            { name: "Boston, USA", description: "$", image: "https://github.com/fanyiyang/travel-map/blob/main/01788763-188B-4708-84A9-A9D9FB32ABE9_1_105_c.jpeg?raw=true" },
-            { name: "Miami, USA", description: "$", image: "https://github.com/fanyiyang/travel-map/blob/main/MIAMI.jpg?raw=true" },
-            { name: "Las Vegas, Nevada, USA", description: "$", image: "https://github.com/fanyiyang/fanyiyang.github.io/blob/main/LV.jpg?raw=true" },
-            { name: "San Francisco, USA", description: "$¥", image: "https://github.com/fanyiyang/fanyiyang.github.io/blob/main/SF.jpg?raw=true" },
-
-            { name: "London, UK", description: "Harbor city with iconic landmarks", image: "https://github.com/fanyiyang/fanyiyang.github.io/blob/main/London.jpg?raw=true" },
-            { name: "Edinburgh, UK", description: "", image: "https://github.com/fanyiyang/fanyiyang.github.io/blob/main/Edinburgh.jpg?raw=true" },
-
-            { name: "Switzerland", description: "Summer camp", image: "https://github.com/fanyiyang/travel-map/blob/main/switzerland.jpg?raw=true" },
-            { name: "Revkjavik, Iceland", description: "Do not go gentle into that good night", image: "https://github.com/fanyiyang/travel-map/blob/main/iceland.jpg?raw=true" },
-            { name: "Tokyo, Japan", description: "A pleasant journey before work", image: "https://github.com/fanyiyang/travel-map/blob/main/tokyo.jpeg?raw=true" },
-            { name: "Kamakura, Japan", description: "Peace, sand, island, shrine", image: "https://github.com/fanyiyang/travel-map/blob/main//10679E3D-7F2A-477F-96FC-6D21D05C0E05_1_105_c.jpeg?raw=true" },
-            { name: "Hawaii, USA", description: "Man, chill, sand, island", image: "https://github.com/fanyiyang/travel-map/blob/main//4B2CF592-82A3-4E4F-A063-4DFB482A2696_1_105_c.jpeg?raw=true" },
-            { name: "Marseilles, France", description: "Sea", image: "https://github.com/fanyiyang/travel-map/blob/main/IMG_2843.jpeg?raw=true" },
-            { name: "Rome, Italy", description: "Fallen Empire", image: "https://github.com/fanyiyang/travel-map/blob/main/IMG_3129.jpeg?raw=true" },
+        // Coordinates are [longitude, latitude], ordered as the trip timeline.
+        const places = [
+            { name: "Hokkaido, Japan", description: "Clean, snow, 北大, pre-covid", image: "IMG_20190728_100216.JPG", coordinates: [141.3545, 43.0618] },
+            { name: "Singapore", description: "The City of Light", image: "IMG_0135.jpeg", coordinates: [103.8198, 1.3521] },
+            { name: "New York City, USA", description: "$", image: "NY.jpeg", coordinates: [-74.0060, 40.7128] },
+            { name: "Boston, USA", description: "$", image: "01788763-188B-4708-84A9-A9D9FB32ABE9_1_105_c.jpeg", coordinates: [-71.0589, 42.3601] },
+            { name: "Miami, USA", description: "$", image: "MIAMI.jpg", coordinates: [-80.1918, 25.7617] },
+            { name: "Las Vegas, Nevada, USA", description: "$", image: "LV.jpg", coordinates: [-115.1398, 36.1699] },
+            { name: "San Francisco, USA", description: "$¥", image: "SF.jpg", coordinates: [-122.4194, 37.7749] },
+            { name: "London, UK", description: "Harbor city with iconic landmarks", image: "London.jpg", coordinates: [-0.1276, 51.5072] },
+            { name: "Edinburgh, UK", description: "", image: "Edinburgh.jpg", coordinates: [-3.1883, 55.9533] },
+            { name: "Switzerland", description: "Summer camp", image: "switzerland.jpg", coordinates: [7.4474, 46.9480] },
+            { name: "Reykjavik, Iceland", description: "Do not go gentle into that good night", image: "iceland.jpg", coordinates: [-21.8277, 64.1283] },
+            { name: "Tokyo, Japan", description: "A pleasant journey before work", image: "tokyo.jpeg", coordinates: [139.6917, 35.6895] },
+            { name: "Kamakura, Japan", description: "Peace, sand, island, shrine", image: "10679E3D-7F2A-477F-96FC-6D21D05C0E05_1_105_c.jpeg", coordinates: [139.5467, 35.3192] },
+            { name: "Hawaii, USA", description: "Man, chill, sand, island", image: "4B2CF592-82A3-4E4F-A063-4DFB482A2696_1_105_c.jpeg", coordinates: [-157.8583, 21.3069] },
+            { name: "Marseille, France", description: "Sea", image: "IMG_2843.jpeg", coordinates: [5.3698, 43.2965] },
+            { name: "Rome, Italy", description: "Fallen Empire", image: "IMG_3129.jpeg", coordinates: [12.4964, 41.9028] },
         ];
+
+        document.getElementById('subtitle').textContent = `${places.length} destinations and counting.`;
+
+        // Render the photo cards first so they appear even if Mapbox fails to load.
+        const placeGrid = document.getElementById('placeGrid');
+        const cards = places.map(place => {
+            const card = document.createElement('div');
+            card.className = 'place-card';
+            card.innerHTML = `
+                <img src="${place.image}" alt="${place.name}" class="place-image" loading="lazy">
+                <div class="place-info">
+                    <h2 class="place-name">${place.name}</h2>
+                    <p class="place-description">${place.description}</p>
+                </div>
+            `;
+            placeGrid.appendChild(card);
+            return card;
+        });
+
+        if (typeof mapboxgl === 'undefined') {
+            document.getElementById('map').textContent = 'Map could not be loaded. Check your network connection.';
+            throw new Error('mapbox-gl failed to load');
+        }
 
         const map = new mapboxgl.Map({
             container: 'map',
             style: 'mapbox://styles/mapbox/streets-v11',
-            center: [0, 20],
+            center: [0, 25],
             zoom: 1.5
         });
 
-        map.on('load', async function () {
-            const geocodedPlaces = await Promise.all(places.map(async place => {
-                const response = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${encodeURIComponent(place.name)}.json?access_token=${mapboxgl.accessToken}`);
-                const data = await response.json();
-                const [lon, lat] = data.features[0].center;
-                return { ...place, coordinates: [lon, lat] };
-            }));
+        map.addControl(new mapboxgl.NavigationControl(), 'top-right');
+        map.addControl(new mapboxgl.FullscreenControl(), 'top-right');
 
-            const lineCoordinates = geocodedPlaces.map(place => place.coordinates);
+        function popupHTML(place) {
+            return `
+                <img src="${place.image}" alt="${place.name}" class="popup-image">
+                <h3 class="popup-title">${place.name}</h3>
+                <p class="popup-description">${place.description}</p>
+            `;
+        }
+
+        const markers = places.map(place => {
+            const el = document.createElement('div');
+            el.className = 'marker';
+            el.style.backgroundImage = `url("${encodeURI(place.image)}")`;
+            el.setAttribute('role', 'button');
+            el.setAttribute('aria-label', place.name);
+
+            return new mapboxgl.Marker(el)
+                .setLngLat(place.coordinates)
+                .setPopup(new mapboxgl.Popup({ offset: 28 }).setHTML(popupHTML(place)))
+                .addTo(map);
+        });
+
+        map.on('load', () => {
+            if (typeof turf === 'undefined') return; // skip the route line if Turf failed to load
+            // Great-circle arcs between consecutive stops; MultiLineString keeps
+            // antimeridian-crossing segments (e.g. across the Pacific) intact.
+            const segments = [];
+            for (let i = 0; i < places.length - 1; i++) {
+                const arc = turf.greatCircle(
+                    turf.point(places[i].coordinates),
+                    turf.point(places[i + 1].coordinates),
+                    { npoints: 100 }
+                );
+                if (arc.geometry.type === 'LineString') {
+                    segments.push(arc.geometry.coordinates);
+                } else {
+                    segments.push(...arc.geometry.coordinates);
+                }
+            }
 
             map.addSource('route', {
-                'type': 'geojson',
-                'data': {
-                    'type': 'Feature',
-                    'properties': {},
-                    'geometry': {
-                        'type': 'LineString',
-                        'coordinates': lineCoordinates
-                    }
+                type: 'geojson',
+                data: {
+                    type: 'Feature',
+                    properties: {},
+                    geometry: { type: 'MultiLineString', coordinates: segments }
                 }
             });
 
             map.addLayer({
-                'id': 'route',
-                'type': 'line',
-                'source': 'route',
-                'layout': {
-                    'line-join': 'round',
-                    'line-cap': 'round'
-                },
-                'paint': {
+                id: 'route',
+                type: 'line',
+                source: 'route',
+                layout: { 'line-join': 'round', 'line-cap': 'round' },
+                paint: {
                     'line-color': '#3498db',
-                    'line-width': 3,
-                    'line-dasharray': [2, 4]
+                    'line-width': 2.5,
+                    'line-dasharray': [2, 3]
                 }
             });
+        });
 
-            const arc = [];
-
-            for (let i = 0; i < lineCoordinates.length - 1; i++) {
-                const start = lineCoordinates[i];
-                const end = lineCoordinates[i + 1];
-                const interpolated = turf.bezierSpline({
-                    type: 'Feature',
-                    geometry: {
-                        type: 'LineString',
-                        coordinates: [start, end]
-                    }
-                });
-                arc.push(...interpolated.geometry.coordinates);
-            }
-
-            map.getSource('route').setData({
-                'type': 'Feature',
-                'properties': {},
-                'geometry': {
-                    'type': 'LineString',
-                    'coordinates': arc
-                }
-            });
-
-            geocodedPlaces.forEach((place, index) => {
-                const el = document.createElement('div');
-                el.className = 'marker';
-                el.style.backgroundImage = `url(https://placekitten.com/g/${40 + index * 2}/${40 + index * 2})`;
-                el.style.width = '40px';
-                el.style.height = '40px';
-                el.style.backgroundSize = '100%';
-                el.style.borderRadius = '50%';
-                el.style.border = '2px solid #3498db';
-
-                new mapboxgl.Marker(el)
-                    .setLngLat(place.coordinates)
-                    .setPopup(new mapboxgl.Popup().setHTML(`<h3>${place.name}</h3><p>${place.description}</p>`))
-                    .addTo(map);
-            });
-
-            const placeGrid = document.getElementById('placeGrid');
-            geocodedPlaces.forEach(place => {
-                const card = document.createElement('div');
-                card.className = 'place-card';
-                card.innerHTML = `
-                    <img src="${place.image}" alt="${place.name}" class="place-image">
-                    <div class="place-info">
-                        <h2 class="place-name">${place.name}</h2>
-                        <p class="place-description">${place.description}</p>
-                    </div>
-                `;
-                placeGrid.appendChild(card);
-
-                card.addEventListener('click', () => {
-                    map.flyTo({
-                        center: place.coordinates,
-                        zoom: 9,
-                        speed: 0.8,
-                        curve: 1,
-                        easing(t) {
-                            return t;
-                        }
-                    });
-                });
+        places.forEach((place, index) => {
+            const card = cards[index];
+            card.addEventListener('click', () => {
+                document.querySelectorAll('.place-card.active').forEach(c => c.classList.remove('active'));
+                card.classList.add('active');
+                markers.forEach(m => { if (m.getPopup().isOpen()) m.togglePopup(); });
+                map.flyTo({ center: place.coordinates, zoom: 9, speed: 1.2 });
+                markers[index].togglePopup();
+                map.getContainer().scrollIntoView({ behavior: 'smooth', block: 'nearest' });
             });
         });
     </script>

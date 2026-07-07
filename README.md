@@ -4,23 +4,23 @@
 
 ## Overview
 
-**My Travel Adventures** is a web-based project showcasing various travel destinations on an interactive map. It uses the Mapbox API to geocode locations and display them visually on a map with dynamic markers and a route line connecting all destinations. The page also includes a grid layout with detailed cards for each destination, allowing users to explore these places interactively.
+**My Travel Adventures** is a web-based project showcasing various travel destinations on an interactive map. It uses Mapbox GL JS to display destinations with photo markers and a great-circle route line connecting all stops of the journey. The page also includes a grid layout with detailed cards for each destination, allowing users to explore these places interactively.
 
 ## Features
 
-- **Interactive Map:** Displays travel destinations with clickable markers on a Mapbox-powered map.
-- **Geocoding and Routing:** Automatically geocodes place names to obtain their coordinates and draws a route connecting them.
-- **Smooth Map Navigation:** Fly-to functionality zooms in on a location when a place card is clicked.
-- **Place Cards:** Displays images and descriptions for each destination in a responsive grid.
-- **Visualized Route:** Connects all destinations with a dashed line using a bezier spline interpolation for smoothness.
+- **Interactive Map:** Displays travel destinations as photo markers on a Mapbox-powered map, with zoom and fullscreen controls.
+- **Photo Markers & Popups:** Each stop is marked with its own photo; clicking a marker opens a popup with the picture and a short note.
+- **Smooth Map Navigation:** Fly-to functionality zooms in on a location (and opens its popup) when a place card is clicked.
+- **Place Cards:** Displays images and descriptions for each destination in a responsive grid, with lazy-loaded images.
+- **Visualized Route:** Connects all destinations in trip order with dashed great-circle arcs (computed with Turf.js), including segments that cross the antimeridian.
+- **No runtime geocoding:** Coordinates are stored with each destination, so the page loads instantly with no geocoding API calls.
 
 ## Technologies Used
 
 - **HTML/CSS:** For the structure and styling of the page, including a responsive design and grid layout for place cards.
-- **JavaScript (ES6):** To control map interactivity, fetch geolocation data, and handle dynamic DOM updates.
-- **Mapbox API:** Used for map rendering, geocoding locations, adding markers, and drawing the route.
-- **Turf.js:** For calculating and smoothing the routes between destinations.
-- **Mapbox GL Geocoder:** Provides search and geocoding functionality for finding places.
+- **JavaScript (ES6):** To control map interactivity and handle dynamic DOM updates.
+- **Mapbox GL JS:** Used for map rendering, markers, popups, and drawing the route.
+- **Turf.js:** For computing great-circle arcs between destinations.
 
 ## Installation & Setup
 
@@ -35,9 +35,17 @@
 
 ## Usage
 
-- **View Destinations:** Navigate the map to view various travel locations. Click on a marker to view information about that place.
-- **Fly to Locations:** Click on a destination card in the grid below the map, and the map will zoom in on that location.
-- **Explore the Route:** The dashed route line visually connects all locations, and you can see the smooth transitions between them.
+- **View Destinations:** Navigate the map to view various travel locations. Click on a marker to view the photo and note for that place.
+- **Fly to Locations:** Click on a destination card in the grid below the map, and the map will zoom in on that location and open its popup.
+- **Explore the Route:** The dashed route line visually connects all locations in the order they were visited.
+
+## Adding a Destination
+
+Add a new entry to the `places` array in `index.html` with a name, a short description, an image path (drop the photo into the repo), and `[longitude, latitude]` coordinates:
+
+```javascript
+{ name: "Kyoto, Japan", description: "Temples and tea", image: "kyoto.jpg", coordinates: [135.7681, 35.0116] },
+```
 
 ## Example Destinations
 
@@ -58,10 +66,6 @@ To use this project with your own Mapbox account, replace the existing access to
 mapboxgl.accessToken = 'your-access-token';
 ```
 You can obtain a token by signing up for a [Mapbox account](https://www.mapbox.com/).
-
-## Screenshots
-
-Add relevant screenshots to demonstrate how the page looks and functions.
 
 ## Future Enhancements
 
