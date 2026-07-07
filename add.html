@@ -370,7 +370,11 @@ window.PLACES = [
                 setStatus('Reading current places.js…');
                 const cur = await gh(`/repos/${repo}/contents/places.js?ref=${encodeURIComponent(branch)}`, token);
                 const text = b64decodeText(cur.content);
-                const list = JSON.parse(text.slice(text.indexOf('['), text.lastIndexOf(']') + 1));
+                // The array starts after "window.PLACES =" — searching from the
+                // top would match the "[longitude, latitude]" in the header comment.
+                const arrStart = text.indexOf('[', text.indexOf('window.PLACES'));
+                if (arrStart < 1) throw new Error('Could not find the places array in places.js.');
+                const list = JSON.parse(text.slice(arrStart, text.lastIndexOf(']') + 1));
 
                 if (list.some(p => p.image === entry.image)) {
                     throw new Error(`A destination already uses the filename "${entry.image}" — pick another name.`);
