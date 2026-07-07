@@ -45,14 +45,28 @@
         input:focus { outline: 2px solid #3498db; border-color: transparent; }
         .hint { font-size: 0.8rem; color: #7a8a99; margin-top: 0.25rem; }
         #pickMap { height: 320px; border-radius: 8px; margin-top: 0.5rem; }
-        #photoPreview {
-            display: none;
-            width: 120px;
-            height: 120px;
-            object-fit: cover;
-            border-radius: 50%;
-            border: 3px solid #3498db;
+        .photo-row {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
             margin-top: 0.75rem;
+        }
+        .photo-thumb {
+            width: 64px;
+            height: 64px;
+            object-fit: cover;
+            border-radius: 8px;
+            flex-shrink: 0;
+        }
+        .photo-row input { flex: 1; }
+        .cover-tag {
+            font-size: 0.7rem;
+            font-weight: 700;
+            color: white;
+            background: #3498db;
+            border-radius: 999px;
+            padding: 0.15rem 0.5rem;
+            flex-shrink: 0;
         }
         .coords { font-family: ui-monospace, Menlo, Consolas, monospace; font-size: 0.9rem; color: #555; margin-top: 0.5rem; }
         .row { display: flex; gap: 1rem; }
@@ -94,12 +108,10 @@
     </header>
     <div class="container">
         <div class="step">
-            <h2>1 · Photo</h2>
-            <input type="file" id="photoInput" accept="image/*">
-            <img id="photoPreview" alt="Photo preview">
-            <label for="photoName">Filename in the repository</label>
-            <input type="text" id="photoName" placeholder="e.g. kyoto.jpg">
-            <p class="hint">Auto-filled from the chosen file; tidy it up if you like. Tip: photos under ~1&nbsp;MB keep the page fast.</p>
+            <h2>1 · Photos</h2>
+            <input type="file" id="photoInput" accept="image/*" multiple>
+            <div id="photoList"></div>
+            <p class="hint">Pick one or more photos — the first is the cover shown on the map marker and card. Filenames are auto-suggested (editable), and large photos are compressed automatically before upload.</p>
         </div>
 
         <div class="step">
@@ -108,6 +120,9 @@
             <input type="text" id="placeName" placeholder="e.g. Kyoto, Japan">
             <label for="placeDesc">Short note</label>
             <input type="text" id="placeDesc" placeholder="e.g. Temples and tea">
+            <label for="placeDate">Date of the trip</label>
+            <input type="date" id="placeDate">
+            <p class="hint">Auto-filled from the photo's capture date when available. Used for the timeline order and year filter; leave empty if unknown.</p>
         </div>
 
         <div class="step">
@@ -151,60 +166,92 @@
 
         const $ = id => document.getElementById(id);
         let coordinates = null;
-        let photoFile = null;
+        let photoFiles = []; // File objects in cover-first order
 
         // How the current pin was set; higher rank wins so a manual pin is
         // never overwritten by auto-detection.
         const SOURCE_RANK = { name: 1, exif: 2, manual: 3 };
         let coordSource = null;
 
-        // --- EXIF GPS extraction (JPEG only; returns [lon, lat] or null) ---
-        async function readExifGps(file) {
+        // --- EXIF extraction (JPEG only; returns {gps: [lon, lat]|null, date: "YYYY-MM-DD"|null}) ---
+        async function readExifMeta(file) {
             try {
                 const buf = await file.slice(0, 262144).arrayBuffer();
                 const view = new DataView(buf);
-                if (view.byteLength < 4 || view.getUint16(0) !== 0xFFD8) return null;
+                if (view.byteLength < 4 || view.getUint16(0) !== 0xFFD8) return { gps: null, date: null };
                 let offset = 2;
                 while (offset + 4 < view.byteLength) {
                     const marker = view.getUint16(offset);
                     if ((marker & 0xFF00) !== 0xFF00) break;
                     const size = view.getUint16(offset + 2);
                     if (marker === 0xFFE1 && view.getUint32(offset + 4) === 0x45786966) {
-                        return parseTiffGps(view, offset + 10);
+                        return parseTiff(view, offset + 10);
                     }
                     offset += 2 + size;
                 }
             } catch (e) { /* unreadable EXIF is fine — fall back to manual */ }
-            return null;
+            return { gps: null, date: null };
         }
-        function parseTiffGps(view, t) {
+        function parseTiff(view, t) {
             const little = view.getUint16(t) === 0x4949;
             const g16 = o => view.getUint16(o, little);
             const g32 = o => view.getUint32(o, little);
             const ifd0 = t + g32(t + 4);
-            let gps = null;
+            let gpsIfd = null, exifIfd = null;
             for (let i = 0, n = g16(ifd0); i < n; i++) {
                 const e = ifd0 + 2 + i * 12;
-                if (g16(e) === 0x8825) gps = t + g32(e + 8);
+                if (g16(e) === 0x8825) gpsIfd = t + g32(e + 8);
+                if (g16(e) === 0x8769) exifIfd = t + g32(e + 8);
             }
-            if (!gps) return null;
-            let latRef, lonRef, lat, lon;
-            const rat = o => g32(o) / g32(o + 4);
-            for (let i = 0, n = g16(gps); i < n; i++) {
-                const e = gps + 2 + i * 12;
-                const tag = g16(e);
-                if (tag === 1) latRef = String.fromCharCode(view.getUint8(e + 8));
-                if (tag === 3) lonRef = String.fromCharCode(view.getUint8(e + 8));
-                if (tag === 2 || tag === 4) {
-                    const vo = t + g32(e + 8);
-                    const d = rat(vo) + rat(vo + 8) / 60 + rat(vo + 16) / 3600;
-                    if (tag === 2) lat = d; else lon = d;
+            return { gps: gpsIfd ? readGps(gpsIfd) : null, date: exifIfd ? readDate(exifIfd) : null };
+
+            function readGps(gps) {
+                let latRef, lonRef, lat, lon;
+                const rat = o => g32(o) / g32(o + 4);
+                for (let i = 0, n = g16(gps); i < n; i++) {
+                    const e = gps + 2 + i * 12;
+                    const tag = g16(e);
+                    if (tag === 1) latRef = String.fromCharCode(view.getUint8(e + 8));
+                    if (tag === 3) lonRef = String.fromCharCode(view.getUint8(e + 8));
+                    if (tag === 2 || tag === 4) {
+                        const vo = t + g32(e + 8);
+                        const d = rat(vo) + rat(vo + 8) / 60 + rat(vo + 16) / 3600;
+                        if (tag === 2) lat = d; else lon = d;
+                    }
                 }
+                if (lat == null || lon == null || !isFinite(lat) || !isFinite(lon) || (lat === 0 && lon === 0)) return null;
+                if (latRef === 'S') lat = -lat;
+                if (lonRef === 'W') lon = -lon;
+                return [lon, lat];
             }
-            if (lat == null || lon == null || !isFinite(lat) || !isFinite(lon) || (lat === 0 && lon === 0)) return null;
-            if (latRef === 'S') lat = -lat;
-            if (lonRef === 'W') lon = -lon;
-            return [lon, lat];
+            function readDate(exif) {
+                for (let i = 0, n = g16(exif); i < n; i++) {
+                    const e = exif + 2 + i * 12;
+                    if (g16(e) === 0x9003) { // DateTimeOriginal, ASCII "YYYY:MM:DD HH:MM:SS"
+                        const vo = t + g32(e + 8);
+                        let s = '';
+                        for (let j = 0; j < 10; j++) s += String.fromCharCode(view.getUint8(vo + j));
+                        const m = s.match(/^(\d{4}):(\d{2}):(\d{2})$/);
+                        return m ? `${m[1]}-${m[2]}-${m[3]}` : null;
+                    }
+                }
+                return null;
+            }
+        }
+
+        // --- Client-side compression: downscale to ≤1600px JPEG so the site stays fast ---
+        async function compressImage(file) {
+            if (file.size < 500 * 1024 || !/^image\/(jpeg|png|webp)$/.test(file.type)) return file;
+            try {
+                const bmp = await createImageBitmap(file); // applies EXIF orientation
+                const scale = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.round(bmp.width * scale);
+                canvas.height = Math.round(bmp.height * scale);
+                canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
+                const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.8));
+                return (blob && blob.size < file.size) ? blob : file;
+            } catch (e) { return file; } // e.g. HEIC the browser can't decode — upload as-is
         }
 
         // --- Location picker ---
@@ -256,34 +303,63 @@
             nameTimer = setTimeout(geocodeName, 800);
         });
 
-        // --- Photo ---
+        // --- Photos ---
         $('photoInput').addEventListener('change', async () => {
-            photoFile = $('photoInput').files[0] || null;
-            if (!photoFile) return;
-            $('photoName').value = photoFile.name.replace(/\s+/g, '-').replace(/[^\w.\-]/g, '');
-            $('photoPreview').src = URL.createObjectURL(photoFile);
-            $('photoPreview').style.display = 'block';
+            photoFiles = Array.from($('photoInput').files);
+            const list = $('photoList');
+            list.innerHTML = '';
+            photoFiles.forEach((file, i) => {
+                const row = document.createElement('div');
+                row.className = 'photo-row';
+                const thumb = document.createElement('img');
+                thumb.className = 'photo-thumb';
+                thumb.alt = file.name;
+                thumb.src = URL.createObjectURL(file);
+                const name = document.createElement('input');
+                name.type = 'text';
+                name.value = file.name.replace(/\s+/g, '-').replace(/[^\w.\-]/g, '');
+                name.addEventListener('input', updateSnippet);
+                row.append(thumb, name);
+                if (i === 0) {
+                    const tag = document.createElement('span');
+                    tag.className = 'cover-tag';
+                    tag.textContent = 'cover';
+                    row.appendChild(tag);
+                }
+                list.appendChild(row);
+            });
             updateSnippet();
-            const gps = await readExifGps(photoFile);
-            if (gps) setPin(gps, 'exif', true);
+
+            // Auto-fill location and date from the photos' EXIF (first hit wins).
+            for (const file of photoFiles) {
+                const meta = await readExifMeta(file);
+                if (meta.gps) setPin(meta.gps, 'exif', true);
+                if (meta.date && !$('placeDate').value) { $('placeDate').value = meta.date; updateSnippet(); }
+                if (coordinates && $('placeDate').value) break;
+            }
         });
+        function photoNames() {
+            return Array.from($('photoList').querySelectorAll('input')).map(inp => inp.value.trim());
+        }
 
         // --- Snippet ---
         function currentEntry() {
-            return {
+            const entry = {
                 name: $('placeName').value.trim(),
                 description: $('placeDesc').value.trim(),
-                image: $('photoName').value.trim(),
+                images: photoNames().filter(Boolean),
                 coordinates
             };
+            if ($('placeDate').value) entry.date = $('placeDate').value;
+            return entry;
         }
         function updateSnippet() {
             const e = currentEntry();
-            $('snippet').textContent = (e.name && e.image && coordinates)
+            $('snippet').textContent = (e.name && e.images.length && coordinates)
                 ? '  ' + JSON.stringify(e) + ','
                 : 'Fill in the steps above to generate the snippet.';
         }
-        ['placeName', 'placeDesc', 'photoName'].forEach(id => $(id).addEventListener('input', updateSnippet));
+        ['placeName', 'placeDesc', 'placeDate'].forEach(id => $(id).addEventListener('input', updateSnippet));
         $('copyBtn').addEventListener('click', () => {
             navigator.clipboard.writeText($('snippet').textContent);
             $('copyBtn').textContent = 'Copied!';
@@ -301,7 +377,8 @@
         // --- Publish ---
         const PLACES_HEADER =
 `// Travel destinations shown on the map, in trip order.
-// Coordinates are [longitude, latitude].
+// Coordinates are [longitude, latitude]; images is a list (first one is the cover);
+// date is optional (YYYY-MM-DD) and drives the timeline ordering and year filter.
 // Add new entries with add.html (recommended) or edit by hand —
 // keep the array valid JSON (double quotes, no trailing comment lines inside).
 window.PLACES = [
@@ -353,8 +430,10 @@ window.PLACES = [
             const branch = $('ghBranch').value.trim() || 'main';
             const token = $('ghToken').value.trim();
 
-            if (!photoFile) return setStatus('Choose a photo first (step 1).', 'err');
-            if (!entry.image) return setStatus('Give the photo a filename (step 1).', 'err');
+            const names = photoNames();
+            if (!photoFiles.length) return setStatus('Choose at least one photo (step 1).', 'err');
+            if (names.some(n => !n)) return setStatus('Every photo needs a filename (step 1).', 'err');
+            if (new Set(names).size !== names.length) return setStatus('Photo filenames must be unique (step 1).', 'err');
             if (!entry.name) return setStatus('Enter the place name (step 2).', 'err');
             if (!coordinates) return setStatus('Pick the location on the map (step 3).', 'err');
             if (!/^[^/]+\/[^/]+$/.test(repo)) return setStatus('Repository must look like owner/name.', 'err');
@@ -374,25 +453,32 @@ window.PLACES = [
                 // top would match the "[longitude, latitude]" in the header comment.
                 const arrStart = text.indexOf('[', text.indexOf('window.PLACES'));
                 if (arrStart < 1) throw new Error('Could not find the places array in places.js.');
-                const list = JSON.parse(text.slice(arrStart, text.lastIndexOf(']') + 1));
+                // Normalize any old-schema entries ({image: "..."}) to {images: [...]}.
+                const list = JSON.parse(text.slice(arrStart, text.lastIndexOf(']') + 1)).map(p => {
+                    if (p.image && !p.images) { const { image, ...rest } = p; return { ...rest, images: [image] }; }
+                    return p;
+                });
 
-                if (list.some(p => p.image === entry.image)) {
-                    throw new Error(`A destination already uses the filename "${entry.image}" — pick another name.`);
-                }
+                const taken = new Set(list.flatMap(p => p.images || []));
+                const clash = entry.images.find(n => taken.has(n));
+                if (clash) throw new Error(`A destination already uses the filename "${clash}" — pick another name.`);
                 list.push(entry);
                 const newText = PLACES_HEADER
                     + list.map(p => '  ' + JSON.stringify(p)).join(',\n')
                     + '\n];\n';
 
-                setStatus('Uploading photo…');
-                await gh(`/repos/${repo}/contents/${encodeURIComponent(entry.image)}`, token, {
-                    method: 'PUT',
-                    body: JSON.stringify({
-                        message: `Add photo for ${entry.name}`,
-                        content: await fileToBase64(photoFile),
-                        branch
-                    })
-                });
+                for (let i = 0; i < photoFiles.length; i++) {
+                    setStatus(`Compressing and uploading photo ${i + 1} of ${photoFiles.length}…`);
+                    const blob = await compressImage(photoFiles[i]);
+                    await gh(`/repos/${repo}/contents/${encodeURIComponent(entry.images[i])}`, token, {
+                        method: 'PUT',
+                        body: JSON.stringify({
+                            message: `Add photo for ${entry.name}`,
+                            content: await fileToBase64(blob),
+                            branch
+                        })
+                    });
+                }
 
                 setStatus('Updating places.js…');
                 await gh(`/repos/${repo}/contents/places.js`, token, {
