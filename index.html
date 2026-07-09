@@ -456,20 +456,29 @@
 
             // A little plane flies the whole route once when the page opens.
             function planeIcon() {
-                const S = 56;
+                const S = 64;
                 const c = document.createElement('canvas');
                 c.width = c.height = S;
                 const ctx = c.getContext('2d');
                 ctx.translate(S / 2, S / 2);
-                ctx.beginPath(); // stylized paper plane pointing north
-                ctx.moveTo(0, -22);
-                ctx.lineTo(16, 16);
-                ctx.lineTo(0, 7);
-                ctx.lineTo(-16, 16);
+                // Top-down airplane silhouette pointing north: nose, fuselage,
+                // swept main wings, tail wings. Right half; the left is mirrored.
+                const half = [
+                    [3.2, -20], [3.2, -8],           // nose flank, fuselage to wing root
+                    [26, 4], [26, 9.5], [3.4, 5.5],  // main wing: tip leading, tip trailing, root trailing
+                    [3.4, 15],                       // fuselage to tail root
+                    [11.5, 22.5], [11.5, 26.5],      // tail wing tip
+                    [1.8, 23.5], [0, 25]             // tail trailing edge to center
+                ];
+                ctx.beginPath();
+                ctx.moveTo(0, -26); // nose tip
+                half.forEach(([x, y]) => ctx.lineTo(x, y));
+                [...half].reverse().slice(1).forEach(([x, y]) => ctx.lineTo(-x, y));
                 ctx.closePath();
                 ctx.fillStyle = '#1e5799';
                 ctx.strokeStyle = '#ffffff';
-                ctx.lineWidth = 4;
+                ctx.lineWidth = 3.5;
+                ctx.lineJoin = 'round';
                 ctx.stroke();
                 ctx.fill();
                 return ctx.getImageData(0, 0, S, S);
@@ -477,6 +486,14 @@
             function animatePlane(path) {
                 if (path.length < 2) return;
                 map.addImage('plane', planeIcon(), { pixelRatio: 2 });
+                // Cumulative distance along the route so the plane flies at a
+                // constant ground speed — equal points per segment would make it
+                // crawl over short hops and streak across ocean crossings.
+                const cum = [0];
+                for (let i = 1; i < path.length; i++) {
+                    cum.push(cum[i - 1] + turf.distance(turf.point(path[i - 1]), turf.point(path[i])));
+                }
+                const total = cum[cum.length - 1];
                 const pointAt = i => ({
                     type: 'Feature',
                     properties: { bearing: turf.bearing(turf.point(path[i]), turf.point(path[Math.min(i + 1, path.length - 1)])) },
@@ -495,13 +512,16 @@
                         'icon-ignore-placement': true
                     }
                 });
-                const DURATION = 14000;
+                const DURATION = 30000;
                 let start = null;
+                let idx = 0;
                 const frame = ts => {
                     if (!map.getSource('plane')) return; // style changed / removed
                     if (start === null) start = ts;
                     const t = Math.min(1, (ts - start) / DURATION);
-                    map.getSource('plane').setData(pointAt(Math.min(path.length - 2, Math.floor(t * (path.length - 1)))));
+                    const target = t * total;
+                    while (idx < path.length - 2 && cum[idx + 1] < target) idx++;
+                    map.getSource('plane').setData(pointAt(idx));
                     if (t < 1) {
                         requestAnimationFrame(frame);
                     } else {
