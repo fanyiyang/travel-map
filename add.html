@@ -104,7 +104,7 @@
 <body>
     <header>
         <h1>Add a Destination</h1>
-        <a href="index.html">← back to the map</a>
+        <a href="index.html">← back to the map</a> · <a href="manage.html" style="color:#cfe8ff">manage existing ones</a>
     </header>
     <div class="container">
         <div class="step">
@@ -123,6 +123,9 @@
             <label for="placeDate">Date of the trip</label>
             <input type="date" id="placeDate">
             <p class="hint">Auto-filled from the photo's capture date when available. Used for the timeline order and year filter; leave empty if unknown.</p>
+            <label for="placeCountry">Country</label>
+            <input type="text" id="placeCountry" placeholder="auto-detected from the location">
+            <p class="hint">Feeds the "N countries" stat on the map page.</p>
         </div>
 
         <div class="step">
@@ -279,6 +282,22 @@
             $('coordsOut').textContent = `longitude ${coordinates[0]}, latitude ${coordinates[1]}${SOURCE_LABEL[source]}`;
             if (fly) map.flyTo({ center: coordinates, zoom: 8 });
             updateSnippet();
+            fillCountry();
+        }
+
+        // Reverse-geocode the pin into the country field (unless typed by hand).
+        let countryAuto = true;
+        $('placeCountry').addEventListener('input', () => { countryAuto = !$('placeCountry').value; updateSnippet(); });
+        async function fillCountry() {
+            if (!coordinates || !countryAuto) return;
+            try {
+                const res = await fetch(`https://api.mapbox.com/geocoding/v5/mapbox.places/${coordinates[0]},${coordinates[1]}.json?types=country&limit=1&access_token=${mapboxgl.accessToken}`);
+                const data = await res.json();
+                if (countryAuto && data.features && data.features.length) {
+                    $('placeCountry').value = data.features[0].text;
+                    updateSnippet();
+                }
+            } catch (e) { /* stats field is optional — fine to leave empty */ }
         }
         map.on('click', e => setPin([e.lngLat.lng, e.lngLat.lat], 'manual'));
         pin.on('dragend', () => { const p = pin.getLngLat(); setPin([p.lng, p.lat], 'manual'); });
@@ -351,6 +370,7 @@
                 coordinates
             };
             if ($('placeDate').value) entry.date = $('placeDate').value;
+            if ($('placeCountry').value.trim()) entry.country = $('placeCountry').value.trim();
             return entry;
         }
         function updateSnippet() {
@@ -377,9 +397,9 @@
         // --- Publish ---
         const PLACES_HEADER =
 `// Travel destinations shown on the map, in trip order.
-// Coordinates are [longitude, latitude]; images is a list (first one is the cover);
-// date is optional (YYYY-MM-DD) and drives the timeline ordering and year filter.
-// Add new entries with add.html (recommended) or edit by hand —
+// Coordinates are [longitude, latitude]; images is a list (first one is the cover).
+// Optional: date (YYYY-MM-DD) drives the timeline and year filter; country feeds the stats bar.
+// Add new entries with add.html, edit them with manage.html, or edit by hand —
 // keep the array valid JSON (double quotes, no trailing comment lines inside).
 window.PLACES = [
 `;
