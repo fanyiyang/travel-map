@@ -1,0 +1,361 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex">
+    <title>Manage Destinations — My Travel Adventures</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            margin: 0;
+            background-color: #f4f6f8;
+            color: #2c3e50;
+        }
+        header {
+            background: linear-gradient(135deg, #1e5799 0%, #3498db 100%);
+            color: white;
+            text-align: center;
+            padding: 1.5rem 1rem;
+        }
+        header h1 { margin: 0; font-size: 1.6rem; }
+        header a { color: #cfe8ff; font-size: 0.9rem; }
+        .container { max-width: 860px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 1.25rem 1.5rem;
+            margin-bottom: 1.25rem;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+        }
+        .card.dirty { border-left: 4px solid #f39c12; }
+        .place-head { display: flex; gap: 1rem; align-items: flex-start; }
+        .cover {
+            width: 84px;
+            height: 84px;
+            object-fit: cover;
+            border-radius: 50%;
+            border: 3px solid #3498db;
+            flex-shrink: 0;
+        }
+        .fields { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem 1rem; }
+        .fields .wide { grid-column: 1 / -1; }
+        label { display: block; font-size: 0.75rem; font-weight: 600; color: #7a8a99; margin-bottom: 0.15rem; }
+        input[type="text"], input[type="date"], input[type="password"] {
+            width: 100%;
+            padding: 0.45rem 0.6rem;
+            border: 1px solid #ccd5dc;
+            border-radius: 8px;
+            font-size: 0.92rem;
+        }
+        input:focus { outline: 2px solid #3498db; border-color: transparent; }
+        .photos { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.9rem; align-items: center; }
+        .photo-chip {
+            display: flex;
+            align-items: center;
+            gap: 0.4rem;
+            background: #eef3f7;
+            border-radius: 999px;
+            padding: 0.2rem 0.6rem 0.2rem 0.25rem;
+            font-size: 0.8rem;
+        }
+        .photo-chip img { width: 28px; height: 28px; object-fit: cover; border-radius: 50%; }
+        .photo-chip button {
+            border: none;
+            background: none;
+            color: #c0392b;
+            font-weight: 700;
+            cursor: pointer;
+            font-size: 0.9rem;
+            padding: 0 0.2rem;
+        }
+        .photo-chip.new { background: #e8f6ee; }
+        .add-photos { font-size: 0.8rem; }
+        .hint { font-size: 0.8rem; color: #7a8a99; margin-top: 0.25rem; }
+        .row { display: flex; gap: 1rem; }
+        .row > div { flex: 1; }
+        button.primary {
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            padding: 0.7rem 1.4rem;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+        }
+        button.primary:hover { background: #1e5799; }
+        button.primary:disabled { background: #a8c6dd; cursor: not-allowed; }
+        #status { margin-top: 0.75rem; font-size: 0.9rem; white-space: pre-line; }
+        #status.ok { color: #1e7e34; }
+        #status.err { color: #c0392b; }
+        .checkbox-label { display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; margin-top: 0.5rem; }
+        .savebar { position: sticky; bottom: 0; background: linear-gradient(transparent, #f4f6f8 30%); padding: 1rem 0 0.5rem; text-align: right; }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Manage Destinations</h1>
+        <a href="index.html">← back to the map</a> · <a href="add.html" style="color:#cfe8ff">add a new one</a>
+    </header>
+    <div class="container">
+        <div class="card" id="ghCard">
+            <div class="row">
+                <div>
+                    <label for="ghRepo">Repository</label>
+                    <input type="text" id="ghRepo" value="fanyiyang/travel-map">
+                </div>
+                <div>
+                    <label for="ghBranch">Branch</label>
+                    <input type="text" id="ghBranch" value="main">
+                </div>
+            </div>
+            <label for="ghToken" style="margin-top:0.6rem">GitHub token</label>
+            <input type="password" id="ghToken" placeholder="github_pat_…" autocomplete="off">
+            <label class="checkbox-label"><input type="checkbox" id="rememberToken"> Remember token in this browser</label>
+            <p class="hint">Same fine-grained token as add.html (Contents: Read and write). Edit anything below, then hit Save — changed cards are marked orange.</p>
+        </div>
+        <div id="list">Loading destinations…</div>
+        <div class="savebar">
+            <button class="primary" id="saveBtn">Save changes to GitHub</button>
+            <div id="status"></div>
+        </div>
+    </div>
+
+    <script>
+        const $ = id => document.getElementById(id);
+        let placesData = [];   // working copy, edited in place
+        let newFiles = [];     // per-place File objects pending upload
+
+        const PLACES_HEADER =
+`// Travel destinations shown on the map, in trip order.
+// Coordinates are [longitude, latitude]; images is a list (first one is the cover).
+// Optional: date (YYYY-MM-DD) drives the timeline and year filter; country feeds the stats bar.
+// Add new entries with add.html, edit them with manage.html, or edit by hand —
+// keep the array valid JSON (double quotes, no trailing comment lines inside).
+window.PLACES = [
+`;
+
+        // --- shared helpers (same as add.html) ---
+        function b64encodeText(text) {
+            const bytes = new TextEncoder().encode(text);
+            let bin = '';
+            bytes.forEach(b => { bin += String.fromCharCode(b); });
+            return btoa(bin);
+        }
+        function fileToBase64(file) {
+            return new Promise((resolve, reject) => {
+                const r = new FileReader();
+                r.onload = () => resolve(r.result.split(',')[1]);
+                r.onerror = reject;
+                r.readAsDataURL(file);
+            });
+        }
+        async function compressImage(file) {
+            if (file.size < 500 * 1024 || !/^image\/(jpeg|png|webp)$/.test(file.type)) return file;
+            try {
+                const bmp = await createImageBitmap(file);
+                const scale = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+                const canvas = document.createElement('canvas');
+                canvas.width = Math.round(bmp.width * scale);
+                canvas.height = Math.round(bmp.height * scale);
+                canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
+                const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.8));
+                return (blob && blob.size < file.size) ? blob : file;
+            } catch (e) { return file; }
+        }
+        async function gh(path, token, opts = {}) {
+            const res = await fetch(`https://api.github.com${path}`, {
+                ...opts,
+                headers: {
+                    'Authorization': `Bearer ${token}`,
+                    'Accept': 'application/vnd.github+json',
+                    'X-GitHub-Api-Version': '2022-11-28',
+                    ...(opts.headers || {})
+                }
+            });
+            const body = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(body.message || `GitHub API error ${res.status}`);
+            return body;
+        }
+        function setStatus(msg, cls) {
+            $('status').textContent = msg;
+            $('status').className = cls || '';
+        }
+
+        // --- GitHub settings persistence (shared keys with add.html) ---
+        $('ghRepo').value = localStorage.getItem('tm_repo') || $('ghRepo').value;
+        $('ghBranch').value = localStorage.getItem('tm_branch') || $('ghBranch').value;
+        if (localStorage.getItem('tm_token')) {
+            $('ghToken').value = localStorage.getItem('tm_token');
+            $('rememberToken').checked = true;
+        }
+
+        // --- Load current data (cache-busted so edits are based on the latest file) ---
+        async function loadPlaces() {
+            const res = await fetch(`places.js?t=${Date.now()}`);
+            const text = await res.text();
+            const arrStart = text.indexOf('[', text.indexOf('window.PLACES'));
+            if (arrStart < 1) throw new Error('Could not parse places.js');
+            return JSON.parse(text.slice(arrStart, text.lastIndexOf(']') + 1)).map(p => {
+                if (p.image && !p.images) { const { image, ...rest } = p; return { ...rest, images: [image] }; }
+                return p;
+            });
+        }
+
+        function render() {
+            const list = $('list');
+            list.innerHTML = '';
+            placesData.forEach((p, i) => {
+                const card = document.createElement('div');
+                card.className = 'card';
+                card.innerHTML = `
+                    <div class="place-head">
+                        <img class="cover" src="${p.images[0] || ''}" alt="">
+                        <div class="fields">
+                            <div><label>Name</label><input type="text" data-field="name" value=""></div>
+                            <div><label>Country</label><input type="text" data-field="country" value=""></div>
+                            <div class="wide"><label>Note</label><input type="text" data-field="description" value=""></div>
+                            <div><label>Date</label><input type="date" data-field="date" value="${p.date || ''}"></div>
+                        </div>
+                    </div>
+                    <div class="photos"></div>
+                `;
+                // set values via property (not attribute) so quotes/unicode are safe
+                card.querySelector('[data-field="name"]').value = p.name || '';
+                card.querySelector('[data-field="country"]').value = p.country || '';
+                card.querySelector('[data-field="description"]').value = p.description || '';
+
+                card.querySelectorAll('[data-field]').forEach(inp => {
+                    inp.addEventListener('input', () => {
+                        const v = inp.value.trim();
+                        if (inp.dataset.field === 'date' || inp.dataset.field === 'country') {
+                            if (v) p[inp.dataset.field] = v; else delete p[inp.dataset.field];
+                        } else {
+                            p[inp.dataset.field] = v;
+                        }
+                        card.classList.add('dirty');
+                    });
+                });
+
+                const photos = card.querySelector('.photos');
+                const renderPhotos = () => {
+                    photos.innerHTML = '';
+                    p.images.forEach((img, j) => {
+                        const chip = document.createElement('span');
+                        chip.className = 'photo-chip';
+                        chip.innerHTML = `<img src="${encodeURI(img)}" alt=""><span>${img}</span>`;
+                        if (p.images.length > 1) {
+                            const del = document.createElement('button');
+                            del.textContent = '×';
+                            del.title = 'Remove from this destination (the file stays in the repo)';
+                            del.addEventListener('click', () => {
+                                p.images.splice(j, 1);
+                                card.classList.add('dirty');
+                                card.querySelector('.cover').src = p.images[0];
+                                renderPhotos();
+                            });
+                            chip.appendChild(del);
+                        }
+                        photos.appendChild(chip);
+                    });
+                    (newFiles[i] || []).forEach((f, j) => {
+                        const chip = document.createElement('span');
+                        chip.className = 'photo-chip new';
+                        chip.innerHTML = `<img src="${URL.createObjectURL(f)}" alt=""><span>${f.cleanName} (new)</span>`;
+                        const del = document.createElement('button');
+                        del.textContent = '×';
+                        del.addEventListener('click', () => {
+                            newFiles[i].splice(j, 1);
+                            renderPhotos();
+                        });
+                        chip.appendChild(del);
+                        photos.appendChild(chip);
+                    });
+                    const add = document.createElement('input');
+                    add.type = 'file';
+                    add.accept = 'image/*';
+                    add.multiple = true;
+                    add.className = 'add-photos';
+                    add.addEventListener('change', () => {
+                        newFiles[i] = newFiles[i] || [];
+                        for (const f of add.files) {
+                            f.cleanName = f.name.replace(/\s+/g, '-').replace(/[^\w.\-]/g, '');
+                            newFiles[i].push(f);
+                        }
+                        card.classList.add('dirty');
+                        renderPhotos();
+                    });
+                    photos.appendChild(add);
+                };
+                renderPhotos();
+                list.appendChild(card);
+            });
+        }
+
+        loadPlaces().then(data => { placesData = data; render(); })
+            .catch(e => { $('list').textContent = `Failed to load destinations: ${e.message}`; });
+
+        // --- Save ---
+        $('saveBtn').addEventListener('click', async () => {
+            const repo = $('ghRepo').value.trim();
+            const branch = $('ghBranch').value.trim() || 'main';
+            const token = $('ghToken').value.trim();
+            if (!/^[^/]+\/[^/]+$/.test(repo)) return setStatus('Repository must look like owner/name.', 'err');
+            if (!token) return setStatus('Paste your GitHub token.', 'err');
+            if (placesData.some(p => !p.name)) return setStatus('Every destination needs a name.', 'err');
+
+            localStorage.setItem('tm_repo', repo);
+            localStorage.setItem('tm_branch', branch);
+            if ($('rememberToken').checked) localStorage.setItem('tm_token', token);
+            else localStorage.removeItem('tm_token');
+
+            $('saveBtn').disabled = true;
+            try {
+                // upload any newly added photos and append them to their destination
+                const taken = new Set(placesData.flatMap(p => p.images));
+                for (let i = 0; i < placesData.length; i++) {
+                    for (const f of (newFiles[i] || [])) {
+                        if (taken.has(f.cleanName)) throw new Error(`Filename "${f.cleanName}" is already used — rename the file first.`);
+                        setStatus(`Uploading ${f.cleanName}…`);
+                        await gh(`/repos/${repo}/contents/${encodeURIComponent(f.cleanName)}`, token, {
+                            method: 'PUT',
+                            body: JSON.stringify({
+                                message: `Add photo for ${placesData[i].name}`,
+                                content: await fileToBase64(await compressImage(f)),
+                                branch
+                            })
+                        });
+                        placesData[i].images.push(f.cleanName);
+                        taken.add(f.cleanName);
+                    }
+                    newFiles[i] = [];
+                }
+
+                setStatus('Updating places.js…');
+                const cur = await gh(`/repos/${repo}/contents/places.js?ref=${encodeURIComponent(branch)}`, token);
+                const newText = PLACES_HEADER
+                    + placesData.map(p => '  ' + JSON.stringify(p)).join(',\n')
+                    + '\n];\n';
+                await gh(`/repos/${repo}/contents/places.js`, token, {
+                    method: 'PUT',
+                    body: JSON.stringify({
+                        message: 'Update destinations via manage.html',
+                        content: b64encodeText(newText),
+                        sha: cur.sha,
+                        branch
+                    })
+                });
+                document.querySelectorAll('.card.dirty').forEach(c => c.classList.remove('dirty'));
+                render();
+                setStatus('Saved! The live site refreshes in a minute or two once GitHub Pages rebuilds.', 'ok');
+            } catch (err) {
+                setStatus(`Failed: ${err.message}`, 'err');
+            } finally {
+                $('saveBtn').disabled = false;
+            }
+        });
+    </script>
+</body>
+</html>

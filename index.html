@@ -4,6 +4,12 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="An interactive map of my travel adventures around the world.">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="My Travel Adventures">
+    <meta property="og:description" content="An interactive map of my travel adventures — photo markers, a timeline, and the route through every stop.">
+    <meta property="og:image" content="https://fanyiyang.github.io/travel-map/screenshot.png">
+    <meta property="og:url" content="https://fanyiyang.github.io/travel-map/">
+    <meta name="twitter:card" content="summary_large_image">
     <title>My Travel Adventures</title>
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
@@ -200,7 +206,7 @@
         <div class="filter-bar" id="filterBar"></div>
         <div class="place-grid" id="placeGrid"></div>
     </div>
-    <footer>Click a marker or a card to explore each destination. · <a href="add.html">Add a destination</a></footer>
+    <footer>Click a marker or a card to explore each destination. · <a href="add.html">Add a destination</a> · <a href="manage.html">Manage</a></footer>
 
     <script src="places.js"></script>
     <script>
@@ -222,7 +228,15 @@
         if (!places.length) {
             document.getElementById('map').textContent = 'No destinations found — places.js failed to load.';
         }
-        document.getElementById('subtitle').textContent = `${places.length} destinations and counting.`;
+
+        // Stats bar: destinations · countries · since first dated trip
+        const countryCount = new Set(places.map(p => p.country).filter(Boolean)).size;
+        const firstYear = places.filter(p => p.date).map(p => p.date.slice(0, 4)).sort()[0];
+        document.getElementById('subtitle').textContent = [
+            `${places.length} destinations`,
+            countryCount ? `${countryCount} countries` : '',
+            firstYear ? `since ${firstYear}` : ''
+        ].filter(Boolean).join(' · ');
 
         // --- Photo cards (render before any map work so they never depend on Mapbox) ---
         const placeGrid = document.getElementById('placeGrid');
@@ -341,10 +355,10 @@
             }
 
             map.on('load', async () => {
+                let segments = [];
                 if (typeof turf !== 'undefined') { // skip the route line if Turf failed to load
                     // Great-circle arcs between consecutive stops; MultiLineString keeps
                     // antimeridian-crossing segments (e.g. across the Pacific) intact.
-                    const segments = [];
                     for (let i = 0; i < places.length - 1; i++) {
                         const arc = turf.greatCircle(
                             turf.point(places[i].coordinates),
@@ -383,28 +397,120 @@
                         map.addImage(`photo-${i}`, await markerIcon(place.images[0]), { pixelRatio: 2 });
                     } catch (e) { /* image failed to decode — this stop just gets no marker */ }
                 }));
+                // Nearby stops (e.g. Tokyo/Kamakura) merge into a numbered cluster
+                // at low zoom and separate as you zoom in.
                 map.addSource('places', {
                     type: 'geojson',
-                    data: {
-                        type: 'FeatureCollection',
-                        features: places.map((p, i) => ({
-                            type: 'Feature',
-                            properties: { index: i, year: p.date ? p.date.slice(0, 4) : '', icon: `photo-${i}` },
-                            geometry: { type: 'Point', coordinates: p.coordinates }
-                        }))
+                    cluster: true,
+                    clusterRadius: 44,
+                    clusterMaxZoom: 11,
+                    data: placeFeatures(selectedYear)
+                });
+                map.addLayer({
+                    id: 'clusters',
+                    type: 'circle',
+                    source: 'places',
+                    filter: ['has', 'point_count'],
+                    paint: {
+                        'circle-color': '#3498db',
+                        'circle-radius': 22,
+                        'circle-stroke-width': 3,
+                        'circle-stroke-color': '#fff'
                     }
+                });
+                map.addLayer({
+                    id: 'cluster-count',
+                    type: 'symbol',
+                    source: 'places',
+                    filter: ['has', 'point_count'],
+                    layout: {
+                        'text-field': ['get', 'point_count_abbreviated'],
+                        'text-font': ['DIN Pro Bold', 'Arial Unicode MS Bold'],
+                        'text-size': 15,
+                        'text-allow-overlap': true
+                    },
+                    paint: { 'text-color': '#ffffff' }
                 });
                 map.addLayer({
                     id: 'places',
                     type: 'symbol',
                     source: 'places',
+                    filter: ['!', ['has', 'point_count']],
                     layout: { 'icon-image': ['get', 'icon'], 'icon-allow-overlap': true }
                 });
                 map.on('click', 'places', e => window.openPopup(e.features[0].properties.index));
-                map.on('mouseenter', 'places', () => { map.getCanvas().style.cursor = 'pointer'; });
-                map.on('mouseleave', 'places', () => { map.getCanvas().style.cursor = ''; });
+                map.on('click', 'clusters', e => {
+                    const f = e.features[0];
+                    map.getSource('places').getClusterExpansionZoom(f.properties.cluster_id, (err, zoom) => {
+                        if (!err) map.easeTo({ center: f.geometry.coordinates, zoom: zoom + 0.5 });
+                    });
+                });
+                ['places', 'clusters'].forEach(layer => {
+                    map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
+                    map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
+                });
                 applyYearFilter(selectedYear);
+
+                if (segments.length) animatePlane(segments.flat());
             });
+
+            // A little plane flies the whole route once when the page opens.
+            function planeIcon() {
+                const S = 56;
+                const c = document.createElement('canvas');
+                c.width = c.height = S;
+                const ctx = c.getContext('2d');
+                ctx.translate(S / 2, S / 2);
+                ctx.beginPath(); // stylized paper plane pointing north
+                ctx.moveTo(0, -22);
+                ctx.lineTo(16, 16);
+                ctx.lineTo(0, 7);
+                ctx.lineTo(-16, 16);
+                ctx.closePath();
+                ctx.fillStyle = '#1e5799';
+                ctx.strokeStyle = '#ffffff';
+                ctx.lineWidth = 4;
+                ctx.stroke();
+                ctx.fill();
+                return ctx.getImageData(0, 0, S, S);
+            }
+            function animatePlane(path) {
+                if (path.length < 2) return;
+                map.addImage('plane', planeIcon(), { pixelRatio: 2 });
+                const pointAt = i => ({
+                    type: 'Feature',
+                    properties: { bearing: turf.bearing(turf.point(path[i]), turf.point(path[Math.min(i + 1, path.length - 1)])) },
+                    geometry: { type: 'Point', coordinates: path[i] }
+                });
+                map.addSource('plane', { type: 'geojson', data: pointAt(0) });
+                map.addLayer({
+                    id: 'plane',
+                    type: 'symbol',
+                    source: 'plane',
+                    layout: {
+                        'icon-image': 'plane',
+                        'icon-rotate': ['get', 'bearing'],
+                        'icon-rotation-alignment': 'map',
+                        'icon-allow-overlap': true,
+                        'icon-ignore-placement': true
+                    }
+                });
+                const DURATION = 14000;
+                let start = null;
+                const frame = ts => {
+                    if (!map.getSource('plane')) return; // style changed / removed
+                    if (start === null) start = ts;
+                    const t = Math.min(1, (ts - start) / DURATION);
+                    map.getSource('plane').setData(pointAt(Math.min(path.length - 2, Math.floor(t * (path.length - 1)))));
+                    if (t < 1) {
+                        requestAnimationFrame(frame);
+                    } else {
+                        map.removeLayer('plane');
+                        map.removeSource('plane');
+                    }
+                };
+                requestAnimationFrame(frame);
+            }
         }
 
         // --- Card interactions ---
@@ -420,14 +526,27 @@
         });
 
         // --- Year filter ---
+        function placeFeatures(year) {
+            return {
+                type: 'FeatureCollection',
+                features: places
+                    .map((p, i) => ({
+                        type: 'Feature',
+                        properties: { index: i, year: p.date ? p.date.slice(0, 4) : '', icon: `photo-${i}` },
+                        geometry: { type: 'Point', coordinates: p.coordinates }
+                    }))
+                    .filter(f => year === 'all' || f.properties.year === year)
+            };
+        }
         function applyYearFilter(year) {
             selectedYear = year;
             document.querySelectorAll('#filterBar .chip').forEach(c => c.classList.toggle('active', c.dataset.year === year));
             places.forEach((p, i) => {
                 cards[i].style.display = (year === 'all' || (p.date && p.date.slice(0, 4) === year)) ? '' : 'none';
             });
-            if (map && map.getLayer('places')) {
-                map.setFilter('places', year === 'all' ? null : ['==', ['get', 'year'], year]);
+            // Clustered sources ignore layer filters, so swap the data instead.
+            if (map && map.getSource('places')) {
+                map.getSource('places').setData(placeFeatures(year));
             }
         }
         const years = [...new Set(places.filter(p => p.date).map(p => p.date.slice(0, 4)))].sort();
