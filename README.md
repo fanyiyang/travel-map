@@ -14,13 +14,16 @@ An interactive world map of the places I've been — photo markers, a flight-pat
 - ✈️ **Flight animation** — a little plane flies the whole route once when the page opens
 - 🧭 **Great-circle route** — dashed arcs connect the stops in trip order, correctly crossing the antimeridian
 - 📅 **Timeline & year filter** — trips order themselves chronologically; chips above the grid filter both cards and markers by year
-- 🖼️ **Albums** — places can have multiple photos, shown as a small carousel in the popup
+- 🖼️ **Albums & lightbox** — places can have multiple photos, shown as a carousel in the popup; click any popup photo for a fullscreen viewer with keyboard/swipe navigation
+- 📖 **Journal** — destinations can carry a long-form story, readable from the popup's "Read the journal" link or collected on [journal.html](https://fanyiyang.github.io/travel-map/journal.html)
+- 🌙 **Dark mode** — follows the system theme, including a dark map style
+- 📱 **Mobile-friendly** — cooperative gestures (one finger scrolls the page, two fingers move the map) and small-screen layout tweaks
 - 📊 **Stats bar** — destinations · countries · since first trip, computed from the data
 - ⚡ **Fast** — coordinates are stored in `places.js` (no geocoding calls at load), photos are pre-compressed, card images lazy-load, and the photo grid renders even if the map CDN is down
 
 ### Updating from the browser — no code editing
 - ➕ **[add.html](https://fanyiyang.github.io/travel-map/add.html)** — add a destination in four steps. Location and trip date auto-fill from the photo's EXIF GPS/capture date (with place-name geocoding as fallback), the country auto-fills from the pin, and photos are compressed client-side before upload.
-- ✏️ **[manage.html](https://fanyiyang.github.io/travel-map/manage.html)** — edit any destination's name, note, date, or country; add photos to an existing place or drop one from its album.
+- ✏️ **[manage.html](https://fanyiyang.github.io/travel-map/manage.html)** — edit any destination's name, note, date, country, or journal; add photos to an existing place or drop one from its album.
 - Both pages publish straight to this repository through the GitHub API using a [fine-grained personal access token](https://github.com/settings/personal-access-tokens/new) (scoped to this repo, **Contents: Read and write**). The pages are public; writing requires the token, which stays in your browser.
 
 ## How it works

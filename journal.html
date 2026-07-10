@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Travel journal entries from My Travel Adventures.">
+    <title>Journal — My Travel Adventures</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            margin: 0;
+            background-color: #f4f6f8;
+            color: #2c3e50;
+        }
+        header {
+            background: linear-gradient(135deg, #1e5799 0%, #3498db 100%);
+            color: white;
+            text-align: center;
+            padding: 1.5rem 1rem;
+        }
+        header h1 { margin: 0; font-size: 1.6rem; }
+        header a { color: #cfe8ff; font-size: 0.9rem; }
+        .container { max-width: 720px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+        .entry {
+            background: white;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 1.5rem;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+        }
+        .entry img {
+            width: 100%;
+            height: 240px;
+            object-fit: cover;
+            display: block;
+            background: #e0e6ea;
+        }
+        .entry-body { padding: 1.25rem 1.5rem 1rem; }
+        .entry h2 { margin: 0 0 0.2rem; color: #1e5799; font-size: 1.3rem; }
+        .entry-date { color: #7a8a99; font-size: 0.85rem; margin-bottom: 0.9rem; }
+        .entry p { line-height: 1.65; margin: 0 0 0.9rem; }
+        .empty { text-align: center; color: #7a8a99; padding: 3rem 1rem; }
+        .empty a { color: #3498db; }
+        @media (prefers-color-scheme: dark) {
+            body { background-color: #11161c; color: #dce6ee; }
+            header { background: linear-gradient(135deg, #16324f 0%, #1d5c8f 100%); }
+            .entry { background: #1b232c; box-shadow: 0 2px 6px rgba(0,0,0,0.35); }
+            .entry h2 { color: #7fb6e0; }
+            .entry-date { color: #8fa3b5; }
+            .entry img { background: #242f3b; }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Travel Journal</h1>
+        <a href="index.html">← back to the map</a>
+    </header>
+    <div class="container" id="entries"></div>
+
+    <script src="places.js"></script>
+    <script>
+        const places = (window.PLACES || []).map(p => ({ ...p, images: p.images || (p.image ? [p.image] : []) }));
+        const withJournal = places
+            .filter(p => p.journal)
+            .sort((a, b) => (b.date || '') < (a.date || '') ? -1 : 1); // newest first
+
+        const container = document.getElementById('entries');
+        if (!withJournal.length) {
+            container.innerHTML = '<div class="empty">No journal entries yet.<br>Open <a href="manage.html">manage.html</a> and write one in the Journal field of any destination.</div>';
+        }
+        withJournal.forEach(p => {
+            const entry = document.createElement('article');
+            entry.className = 'entry';
+            if (p.images[0]) {
+                const img = document.createElement('img');
+                img.src = p.images[0];
+                img.alt = p.name;
+                img.loading = 'lazy';
+                entry.appendChild(img);
+            }
+            const body = document.createElement('div');
+            body.className = 'entry-body';
+            const h = document.createElement('h2');
+            h.textContent = p.name;
+            const d = document.createElement('div');
+            d.className = 'entry-date';
+            d.textContent = [p.date, p.country].filter(Boolean).join(' · ');
+            body.append(h, d);
+            String(p.journal).split(/\n+/).forEach(par => {
+                const el = document.createElement('p');
+                el.textContent = par;
+                body.appendChild(el);
+            });
+            entry.appendChild(body);
+            container.appendChild(entry);
+        });
+    </script>
+</body>
+</html>
