@@ -35,12 +35,14 @@
         }
         .step h2 { margin: 0 0 0.75rem; font-size: 1.1rem; color: #1e5799; }
         label { display: block; font-size: 0.85rem; font-weight: 600; margin: 0.75rem 0 0.25rem; }
-        input[type="text"], input[type="password"] {
+        input[type="text"], input[type="password"], input[type="date"], textarea {
             width: 100%;
             padding: 0.55rem 0.7rem;
             border: 1px solid #ccd5dc;
             border-radius: 8px;
             font-size: 0.95rem;
+            font-family: inherit;
+            resize: vertical;
         }
         input:focus { outline: 2px solid #3498db; border-color: transparent; }
         .hint { font-size: 0.8rem; color: #7a8a99; margin-top: 0.25rem; }
@@ -126,6 +128,8 @@
             <label for="placeCountry">Country</label>
             <input type="text" id="placeCountry" placeholder="auto-detected from the location">
             <p class="hint">Feeds the "N countries" stat on the map page.</p>
+            <label for="placeJournal">Journal (optional)</label>
+            <textarea id="placeJournal" rows="4" placeholder="Long-form story about the trip — shown on journal.html and via the popup's journal link."></textarea>
         </div>
 
         <div class="step">
@@ -371,6 +375,7 @@
             };
             if ($('placeDate').value) entry.date = $('placeDate').value;
             if ($('placeCountry').value.trim()) entry.country = $('placeCountry').value.trim();
+            if ($('placeJournal').value.trim()) entry.journal = $('placeJournal').value.trim();
             return entry;
         }
         function updateSnippet() {
@@ -379,7 +384,7 @@
                 ? '  ' + JSON.stringify(e) + ','
                 : 'Fill in the steps above to generate the snippet.';
         }
-        ['placeName', 'placeDesc', 'placeDate'].forEach(id => $(id).addEventListener('input', updateSnippet));
+        ['placeName', 'placeDesc', 'placeDate', 'placeJournal'].forEach(id => $(id).addEventListener('input', updateSnippet));
         $('copyBtn').addEventListener('click', () => {
             navigator.clipboard.writeText($('snippet').textContent);
             $('copyBtn').textContent = 'Copied!';
@@ -398,7 +403,8 @@
         const PLACES_HEADER =
 `// Travel destinations shown on the map, in trip order.
 // Coordinates are [longitude, latitude]; images is a list (first one is the cover).
-// Optional: date (YYYY-MM-DD) drives the timeline and year filter; country feeds the stats bar.
+// Optional: date (YYYY-MM-DD) drives the timeline and year filter; country feeds
+// the stats bar; journal is long-form text shown on journal.html.
 // Add new entries with add.html, edit them with manage.html, or edit by hand —
 // keep the array valid JSON (double quotes, no trailing comment lines inside).
 window.PLACES = [

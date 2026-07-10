@@ -1,6 +1,7 @@
 // Travel destinations shown on the map, in trip order.
 // Coordinates are [longitude, latitude]; images is a list (first one is the cover).
-// Optional: date (YYYY-MM-DD) drives the timeline and year filter; country feeds the stats bar.
+// Optional: date (YYYY-MM-DD) drives the timeline and year filter; country feeds
+// the stats bar; journal is long-form text shown on journal.html.
 // Add new entries with add.html, edit them with manage.html, or edit by hand —
 // keep the array valid JSON (double quotes, no trailing comment lines inside).
 window.PLACES = [
