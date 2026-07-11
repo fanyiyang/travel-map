@@ -5,6 +5,9 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Travel journal entries from My Travel Adventures.">
     <title>Journal — My Travel Adventures</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; }
         body {
@@ -14,12 +17,14 @@
             color: #2c3e50;
         }
         header {
-            background: linear-gradient(135deg, #1e5799 0%, #3498db 100%);
+            background:
+                radial-gradient(120% 160% at 15% -20%, rgba(120,190,255,.28) 0%, rgba(120,190,255,0) 55%),
+                linear-gradient(140deg, #0d2c50 0%, #17548f 55%, #2f86d1 100%);
             color: white;
             text-align: center;
             padding: 1.5rem 1rem;
         }
-        header h1 { margin: 0; font-size: 1.6rem; }
+        header h1 { margin: 0; font-size: 1.7rem; font-family: 'Playfair Display', Georgia, serif; }
         header a { color: #cfe8ff; font-size: 0.9rem; }
         .container { max-width: 720px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
         .entry {
@@ -37,7 +42,7 @@
             background: #e0e6ea;
         }
         .entry-body { padding: 1.25rem 1.5rem 1rem; }
-        .entry h2 { margin: 0 0 0.2rem; color: #1e5799; font-size: 1.3rem; }
+        .entry h2 { margin: 0 0 0.2rem; color: #1e5799; font-size: 1.35rem; font-family: 'Playfair Display', Georgia, serif; }
         .entry-date { color: #7a8a99; font-size: 0.85rem; margin-bottom: 0.9rem; }
         .entry p { line-height: 1.65; margin: 0 0 0.9rem; }
         .empty { text-align: center; color: #7a8a99; padding: 3rem 1rem; }
