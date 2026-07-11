@@ -417,8 +417,10 @@
             mapboxgl.accessToken = 'pk.eyJ1IjoiZmFueWl5YW5nMjMzIiwiYSI6ImNseG56dHp1dTA5cmQyanB4MDlyNXB5YjAifQ.dXU4lx12g2LDUhENBR_UGA';
             map = new mapboxgl.Map({
                 container: 'map',
+                // navigation-night keeps color (blue ocean, tinted roads) in dark
+                // mode — dark-v11 reads as near-monochrome
                 style: window.matchMedia('(prefers-color-scheme: dark)').matches
-                    ? 'mapbox://styles/mapbox/dark-v11'
+                    ? 'mapbox://styles/mapbox/navigation-night-v1'
                     : 'mapbox://styles/mapbox/streets-v11',
                 center: [0, 25],
                 zoom: 1.5,
