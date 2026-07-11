@@ -9,6 +9,9 @@
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
     <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.min.js"></script>
     <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.css" type="text/css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; }
         body {
@@ -18,12 +21,14 @@
             color: #2c3e50;
         }
         header {
-            background: linear-gradient(135deg, #1e5799 0%, #3498db 100%);
+            background:
+                radial-gradient(120% 160% at 15% -20%, rgba(120,190,255,.28) 0%, rgba(120,190,255,0) 55%),
+                linear-gradient(140deg, #0d2c50 0%, #17548f 55%, #2f86d1 100%);
             color: white;
             text-align: center;
             padding: 1.5rem 1rem;
         }
-        header h1 { margin: 0; font-size: 1.6rem; }
+        header h1 { margin: 0; font-size: 1.7rem; font-family: 'Playfair Display', Georgia, serif; }
         header a { color: #cfe8ff; font-size: 0.9rem; }
         .container { max-width: 760px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
         .step {

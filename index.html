@@ -14,185 +14,238 @@
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
     <style>
         * {
             box-sizing: border-box;
         }
+        :root {
+            --accent: #2f86d1;
+            --accent-deep: #14406e;
+            --bg: #eef2f6;
+            --card: #ffffff;
+            --ink: #1f2d3a;
+            --muted: #5f7080;
+            --faint: #8fa1b0;
+            --line: #dbe4ec;
+            --shadow-sm: 0 1px 2px rgba(15,40,70,.08), 0 4px 14px rgba(15,40,70,.06);
+            --shadow-lg: 0 6px 16px rgba(15,40,70,.16), 0 18px 44px rgba(15,40,70,.14);
+        }
+        ::selection { background: rgba(47,134,209,.25); }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             margin: 0;
             padding: 0;
-            background-color: #f4f6f8;
-            color: #2c3e50;
+            background-color: var(--bg);
+            color: var(--ink);
+            -webkit-font-smoothing: antialiased;
         }
         header {
-            background: linear-gradient(135deg, #1e5799 0%, #3498db 100%);
+            background:
+                radial-gradient(120% 160% at 15% -20%, rgba(120,190,255,.28) 0%, rgba(120,190,255,0) 55%),
+                linear-gradient(140deg, #0d2c50 0%, #17548f 55%, #2f86d1 100%);
             color: white;
             text-align: center;
-            padding: 2rem 1rem 1.5rem;
-            box-shadow: 0 2px 8px rgba(0,0,0,0.15);
+            padding: 2.9rem 1rem 5.2rem;
         }
         h1 {
             margin: 0;
-            font-size: clamp(1.8rem, 5vw, 2.5rem);
-            letter-spacing: 2px;
+            font-family: 'Playfair Display', Georgia, 'Times New Roman', serif;
+            font-weight: 700;
+            font-size: clamp(2rem, 5.5vw, 3rem);
+            letter-spacing: 0.5px;
         }
         .subtitle {
-            margin: 0.5rem 0 0;
-            opacity: 0.9;
-            font-size: 1rem;
+            margin: 0.8rem 0 0;
+            opacity: 0.88;
+            font-size: 0.78rem;
+            text-transform: uppercase;
+            letter-spacing: 0.22em;
         }
+        .subtitle::before { content: '✈'; margin-right: 0.9em; letter-spacing: 0; }
+        .subtitle::after { content: '·'; margin-left: 0.9em; letter-spacing: 0; }
         #map {
             height: 65vh;
             min-height: 400px;
             width: 100%;
-            margin-bottom: 1.5rem;
-            border-radius: 12px;
-            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            margin-top: -3.4rem;
+            margin-bottom: 0.5rem;
+            border-radius: 18px;
+            box-shadow: var(--shadow-lg);
+            border: 4px solid rgba(255,255,255,0.85);
         }
         .container {
             max-width: 1200px;
             margin: 0 auto;
-            padding: 2rem 1rem;
+            padding: 0 1rem 2.5rem;
         }
         .filter-bar {
             display: flex;
             flex-wrap: wrap;
             gap: 0.5rem;
-            margin-bottom: 1.5rem;
+            margin: 1.4rem 0 1.6rem;
         }
         .chip {
-            border: 1px solid #c5d4e0;
-            background: white;
-            color: #1e5799;
+            border: 1px solid var(--line);
+            background: var(--card);
+            color: var(--muted);
             border-radius: 999px;
-            padding: 0.35rem 1rem;
-            font-size: 0.9rem;
+            padding: 0.42rem 1.1rem;
+            font-size: 0.88rem;
             font-weight: 600;
             cursor: pointer;
+            transition: all 0.2s ease;
         }
         .chip:hover {
-            border-color: #3498db;
+            border-color: var(--accent);
+            color: var(--accent);
+            transform: translateY(-1px);
         }
         .chip.active {
-            background: #3498db;
-            border-color: #3498db;
+            background: linear-gradient(135deg, #2f86d1, #1b5f9e);
+            border-color: transparent;
             color: white;
+            box-shadow: 0 4px 12px rgba(47,134,209,.35);
         }
         .place-grid {
             display: grid;
             grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-            gap: 1.5rem;
+            gap: 1.6rem;
         }
         .place-card {
-            background-color: white;
-            border-radius: 12px;
+            background-color: var(--card);
+            border-radius: 16px;
             overflow: hidden;
-            box-shadow: 0 4px 6px rgba(0,0,0,0.08);
-            transition: transform 0.25s ease, box-shadow 0.25s ease;
+            box-shadow: var(--shadow-sm);
+            border: 1px solid var(--line);
+            transition: transform 0.28s ease, box-shadow 0.28s ease, border-color 0.28s ease;
             cursor: pointer;
-            border: 2px solid transparent;
             position: relative;
         }
         .place-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 8px 16px rgba(0,0,0,0.15);
+            transform: translateY(-6px);
+            box-shadow: var(--shadow-lg);
         }
         .place-card.active {
-            border-color: #3498db;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(47,134,209,.3), var(--shadow-lg);
         }
         .place-image {
             width: 100%;
-            height: 180px;
+            height: 190px;
             object-fit: cover;
             display: block;
-            background-color: #e0e6ea;
+            background-color: var(--line);
+            transition: transform 0.5s ease;
+            cursor: pointer;
+        }
+        .place-card:hover .place-image {
+            transform: scale(1.06);
         }
         .photo-badge {
             position: absolute;
-            top: 0.6rem;
-            right: 0.6rem;
-            background: rgba(0,0,0,0.55);
+            top: 0.65rem;
+            right: 0.65rem;
+            background: rgba(10,28,46,0.6);
+            backdrop-filter: blur(4px);
             color: white;
-            font-size: 0.75rem;
+            font-size: 0.72rem;
             border-radius: 999px;
-            padding: 0.15rem 0.55rem;
+            padding: 0.18rem 0.6rem;
         }
         .place-info {
-            padding: 1rem;
+            padding: 1rem 1.1rem 1.15rem;
         }
         .place-name {
-            margin: 0 0 0.5rem 0;
-            font-size: 1.15rem;
-            color: #1e5799;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 0.5rem;
+            margin: 0 0 0.4rem 0;
+            font-size: 1.08rem;
+            font-weight: 700;
+            color: var(--ink);
         }
         .year-badge {
-            font-size: 0.75rem;
-            font-weight: 600;
-            color: #7a8a99;
-            background: #eef3f7;
+            font-size: 0.72rem;
+            font-weight: 700;
+            color: var(--accent);
+            background: rgba(47,134,209,.12);
             border-radius: 999px;
-            padding: 0.1rem 0.5rem;
-            margin-left: 0.4rem;
-            vertical-align: middle;
+            padding: 0.16rem 0.6rem;
+            flex-shrink: 0;
         }
         .place-description {
             margin: 0;
-            color: #666;
-            font-size: 0.95rem;
+            color: var(--muted);
+            font-size: 0.92rem;
+            line-height: 1.45;
         }
         .mapboxgl-popup {
-            max-width: 240px;
+            max-width: 250px;
+        }
+        .mapboxgl-popup-content {
+            border-radius: 12px;
+            box-shadow: var(--shadow-lg);
+            padding: 12px;
         }
         .popup-image {
             width: 100%;
-            height: 130px;
+            height: 135px;
             object-fit: cover;
-            border-radius: 6px;
+            border-radius: 8px;
             display: block;
-            background-color: #e0e6ea;
+            background-color: var(--line);
+            cursor: zoom-in;
         }
         .popup-nav {
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-top: 0.35rem;
+            margin-top: 0.4rem;
         }
         .popup-nav button {
             border: none;
-            background: #eef3f7;
-            color: #1e5799;
-            border-radius: 6px;
+            background: rgba(47,134,209,.12);
+            color: var(--accent);
+            border-radius: 8px;
             width: 2rem;
             height: 1.6rem;
-            font-size: 0.9rem;
+            font-size: 0.95rem;
             font-weight: 700;
             cursor: pointer;
         }
         .popup-nav button:hover {
-            background: #d9e6f0;
+            background: rgba(47,134,209,.24);
         }
         .popup-counter {
-            font-size: 0.8rem;
-            color: #7a8a99;
+            font-size: 0.78rem;
+            color: var(--faint);
         }
         .popup-title {
-            margin: 0.5rem 0 0.25rem;
+            margin: 0.55rem 0 0.25rem;
             font-size: 1rem;
+            color: var(--ink);
         }
         .popup-description {
             margin: 0;
-            color: #666;
+            color: var(--muted);
             font-size: 0.85rem;
         }
         footer {
             text-align: center;
-            padding: 1.5rem;
-            color: #888;
+            padding: 2rem 1rem 2.5rem;
+            color: var(--faint);
             font-size: 0.9rem;
         }
         footer a {
-            color: #3498db;
+            color: var(--accent);
+            text-decoration: none;
+        }
+        footer a:hover {
+            text-decoration: underline;
         }
 
         /* --- Lightbox (fullscreen photo viewer) --- */
@@ -200,7 +253,7 @@
             position: fixed;
             inset: 0;
             z-index: 1000;
-            background: rgba(0,0,0,0.93);
+            background: rgba(4,10,17,0.94);
             display: flex;
             flex-direction: column;
             align-items: center;
@@ -211,16 +264,18 @@
             max-width: 94vw;
             max-height: 82vh;
             object-fit: contain;
-            border-radius: 6px;
+            border-radius: 8px;
+            box-shadow: 0 20px 60px rgba(0,0,0,.5);
         }
         .lb-caption {
             color: #cfd8e0;
-            margin-top: 0.8rem;
+            margin-top: 0.9rem;
             font-size: 0.95rem;
             display: flex;
             gap: 1rem;
             padding: 0 1rem;
             text-align: center;
+            letter-spacing: 0.03em;
         }
         .lb-btn {
             position: absolute;
@@ -234,8 +289,9 @@
             height: 46px;
             font-size: 1.6rem;
             cursor: pointer;
+            transition: background 0.2s ease;
         }
-        .lb-btn:hover { background: rgba(255,255,255,0.28); }
+        .lb-btn:hover { background: rgba(255,255,255,0.3); }
         #lbPrev { left: 3vw; }
         #lbNext { right: 3vw; }
         .lb-close {
@@ -249,14 +305,12 @@
             cursor: pointer;
             line-height: 1;
         }
-        .popup-image { cursor: zoom-in; }
-        .place-image { cursor: pointer; }
 
         /* --- Journal overlay --- */
         .popup-journal {
             display: inline-block;
             margin-top: 0.45rem;
-            color: #3498db;
+            color: var(--accent);
             font-size: 0.85rem;
             cursor: pointer;
             text-decoration: underline;
@@ -265,26 +319,32 @@
             position: fixed;
             inset: 0;
             z-index: 1000;
-            background: rgba(0,0,0,0.55);
+            background: rgba(4,10,17,0.55);
             display: flex;
             align-items: center;
             justify-content: center;
             padding: 1rem;
         }
         .journal-card {
-            background: white;
-            color: #2c3e50;
+            background: var(--card);
+            color: var(--ink);
             max-width: 640px;
             width: 100%;
             max-height: 84vh;
             overflow-y: auto;
-            border-radius: 12px;
-            padding: 1.5rem 1.75rem;
+            border-radius: 16px;
+            padding: 1.6rem 1.85rem;
             position: relative;
+            box-shadow: var(--shadow-lg);
         }
-        .journal-card h2 { margin: 0 0 0.2rem; color: #1e5799; padding-right: 1.5rem; }
-        .journal-date { color: #7a8a99; font-size: 0.85rem; margin-bottom: 1rem; }
-        .journal-card p { line-height: 1.65; margin: 0 0 0.9rem; }
+        .journal-card h2 {
+            margin: 0 0 0.2rem;
+            color: var(--accent-deep);
+            padding-right: 1.5rem;
+            font-family: 'Playfair Display', Georgia, serif;
+        }
+        .journal-date { color: var(--faint); font-size: 0.85rem; margin-bottom: 1rem; }
+        .journal-card p { line-height: 1.7; margin: 0 0 0.9rem; }
         .journal-close {
             position: absolute;
             top: 8px;
@@ -293,41 +353,44 @@
             border: none;
             font-size: 1.7rem;
             cursor: pointer;
-            color: #7a8a99;
+            color: var(--faint);
         }
 
         /* --- Small screens --- */
         @media (max-width: 520px) {
-            #map { height: 55vh; min-height: 320px; }
+            header { padding-bottom: 4.2rem; }
+            #map { height: 55vh; min-height: 320px; margin-top: -2.6rem; }
             .mapboxgl-popup { max-width: 210px; }
-            .container { padding: 1.25rem 0.75rem; }
+            .container { padding: 0 0.75rem 1.5rem; }
         }
 
         /* --- Dark mode --- */
         @media (prefers-color-scheme: dark) {
-            body { background-color: #11161c; color: #dce6ee; }
-            header { background: linear-gradient(135deg, #16324f 0%, #1d5c8f 100%); }
-            .chip { background: #1b232c; border-color: #37475a; color: #7fb6e0; }
-            .chip:hover { border-color: #2c7cb8; }
-            .chip.active { background: #2c7cb8; border-color: #2c7cb8; color: #fff; }
-            .place-card { background-color: #1b232c; box-shadow: 0 4px 6px rgba(0,0,0,0.35); }
-            .place-name { color: #7fb6e0; }
-            .place-description { color: #9fb0bf; }
-            .year-badge { background: #242f3b; color: #8fa3b5; }
-            .place-image, .popup-image { background-color: #242f3b; }
-            .mapboxgl-popup-content { background: #1b232c; color: #dce6ee; }
-            .mapboxgl-popup-tip {
-                border-top-color: #1b232c !important;
-                border-bottom-color: #1b232c !important;
+            :root {
+                --bg: #0e141b;
+                --card: #18212b;
+                --ink: #e4ecf3;
+                --muted: #a9b9c7;
+                --faint: #7c8fa0;
+                --line: #263341;
+                --shadow-sm: 0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.3);
+                --shadow-lg: 0 6px 16px rgba(0,0,0,.5), 0 18px 44px rgba(0,0,0,.45);
             }
-            .mapboxgl-popup-anchor-left .mapboxgl-popup-tip { border-right-color: #1b232c !important; }
-            .mapboxgl-popup-anchor-right .mapboxgl-popup-tip { border-left-color: #1b232c !important; }
-            .mapboxgl-popup-close-button { color: #dce6ee; }
-            .popup-nav button { background: #242f3b; color: #7fb6e0; }
-            .popup-counter { color: #8fa3b5; }
-            .journal-card { background: #1b232c; color: #dce6ee; }
+            header {
+                background:
+                    radial-gradient(120% 160% at 15% -20%, rgba(80,150,220,.2) 0%, rgba(80,150,220,0) 55%),
+                    linear-gradient(140deg, #081b30 0%, #123c66 55%, #1d5c92 100%);
+            }
+            #map { border-color: rgba(24,33,43,0.9); }
             .journal-card h2 { color: #7fb6e0; }
-            footer { color: #7d8b98; }
+            .mapboxgl-popup-content { background: var(--card); color: var(--ink); }
+            .mapboxgl-popup-tip {
+                border-top-color: var(--card) !important;
+                border-bottom-color: var(--card) !important;
+            }
+            .mapboxgl-popup-anchor-left .mapboxgl-popup-tip { border-right-color: var(--card) !important; }
+            .mapboxgl-popup-anchor-right .mapboxgl-popup-tip { border-left-color: var(--card) !important; }
+            .mapboxgl-popup-close-button { color: var(--ink); }
         }
     </style>
 </head>
