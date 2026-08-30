@@ -4,17 +4,35 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="description" content="Travel journal entries from My Travel Adventures.">
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Travel Journal — My Travel Adventures">
+    <meta property="og:description" content="Long-form stories from the places on my travel map.">
+    <meta property="og:image" content="https://fanyiyang.github.io/travel-map/screenshot.png">
     <title>Journal — My Travel Adventures</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>%F0%9F%97%BA%EF%B8%8F</text></svg>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; }
+        :root {
+            --accent: #2f86d1;
+            --accent-deep: #14406e;
+            --bg: #eef2f6;
+            --card: #ffffff;
+            --ink: #1f2d3a;
+            --muted: #5f7080;
+            --faint: #8fa1b0;
+            --line: #dbe4ec;
+            --shadow-sm: 0 1px 2px rgba(15,40,70,.08), 0 4px 14px rgba(15,40,70,.06);
+            --shadow-lg: 0 6px 16px rgba(15,40,70,.16), 0 18px 44px rgba(15,40,70,.14);
+        }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             margin: 0;
-            background-color: #f4f6f8;
-            color: #2c3e50;
+            background-color: var(--bg);
+            color: var(--ink);
+            -webkit-font-smoothing: antialiased;
         }
         header {
             background:
@@ -22,47 +40,172 @@
                 linear-gradient(140deg, #0d2c50 0%, #17548f 55%, #2f86d1 100%);
             color: white;
             text-align: center;
-            padding: 1.5rem 1rem;
+            padding: 2.6rem 1rem 2.2rem;
         }
-        header h1 { margin: 0; font-size: 1.7rem; font-family: 'Playfair Display', Georgia, serif; }
-        header a { color: #cfe8ff; font-size: 0.9rem; }
-        .container { max-width: 720px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
+        header h1 {
+            margin: 0;
+            font-size: clamp(1.8rem, 5vw, 2.5rem);
+            font-family: 'Playfair Display', Georgia, serif;
+        }
+        .header-sub {
+            margin: 0.7rem 0 0;
+            opacity: 0.88;
+            font-size: 0.76rem;
+            text-transform: uppercase;
+            letter-spacing: 0.22em;
+        }
+        .backlink {
+            display: inline-block;
+            margin-top: 1rem;
+            color: #cfe8ff;
+            font-size: 0.88rem;
+            text-decoration: none;
+        }
+        .backlink:hover { text-decoration: underline; }
+        .container { max-width: 720px; margin: 0 auto; padding: 2rem 1rem 3rem; }
+
+        /* Table of contents */
+        .toc {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-bottom: 2rem;
+        }
+        .toc a {
+            border: 1px solid var(--line);
+            background: var(--card);
+            color: var(--muted);
+            border-radius: 999px;
+            padding: 0.35rem 0.95rem;
+            font-size: 0.85rem;
+            font-weight: 600;
+            text-decoration: none;
+            transition: all .2s ease;
+        }
+        .toc a:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+            transform: translateY(-1px);
+        }
+
         .entry {
-            background: white;
-            border-radius: 12px;
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 16px;
             overflow: hidden;
-            margin-bottom: 1.5rem;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+            margin-bottom: 2rem;
+            box-shadow: var(--shadow-sm);
+            transition: box-shadow .3s ease;
+            scroll-margin-top: 1rem;
         }
-        .entry img {
+        .entry:hover { box-shadow: var(--shadow-lg); }
+        .entry-figure { position: relative; display: block; overflow: hidden; }
+        .entry-figure img {
             width: 100%;
-            height: 240px;
+            height: 260px;
             object-fit: cover;
             display: block;
-            background: #e0e6ea;
+            background: var(--line);
+            transition: transform .6s cubic-bezier(.2,.7,.3,1);
         }
-        .entry-body { padding: 1.25rem 1.5rem 1rem; }
-        .entry h2 { margin: 0 0 0.2rem; color: #1e5799; font-size: 1.35rem; font-family: 'Playfair Display', Georgia, serif; }
-        .entry-date { color: #7a8a99; font-size: 0.85rem; margin-bottom: 0.9rem; }
-        .entry p { line-height: 1.65; margin: 0 0 0.9rem; }
-        .empty { text-align: center; color: #7a8a99; padding: 3rem 1rem; }
-        .empty a { color: #3498db; }
+        .entry:hover .entry-figure img { transform: scale(1.04); }
+        .entry-figure .cap {
+            position: absolute;
+            inset: auto 0 0 0;
+            padding: 2.4rem 1.5rem 1.1rem;
+            background: linear-gradient(to top, rgba(6,20,36,.85), rgba(6,20,36,0));
+            color: white;
+        }
+        .entry-figure h2 {
+            margin: 0;
+            font-size: 1.6rem;
+            font-family: 'Playfair Display', Georgia, serif;
+            text-shadow: 0 2px 12px rgba(0,0,0,.4);
+        }
+        .entry-meta {
+            font-size: 0.8rem;
+            opacity: 0.9;
+            letter-spacing: 0.06em;
+            text-transform: uppercase;
+            margin-top: 0.3rem;
+        }
+        .entry-body { padding: 1.6rem 1.75rem 1.25rem; }
+        /* drop cap on the opening paragraph */
+        .entry-body p:first-of-type::first-letter {
+            float: left;
+            font-family: 'Playfair Display', Georgia, serif;
+            font-size: 3.1rem;
+            line-height: 0.86;
+            padding: 0.1rem 0.6rem 0 0;
+            color: var(--accent-deep);
+        }
+        .entry-body p {
+            line-height: 1.75;
+            margin: 0 0 1rem;
+            font-size: 1.02rem;
+        }
+        .entry-foot {
+            border-top: 1px solid var(--line);
+            padding: 0.9rem 1.75rem 1.1rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 1rem;
+            flex-wrap: wrap;
+            font-size: 0.85rem;
+        }
+        .entry-foot a { color: var(--accent); text-decoration: none; font-weight: 600; }
+        .entry-foot a:hover { text-decoration: underline; }
+        .photo-count { color: var(--faint); }
+        .empty {
+            text-align: center;
+            color: var(--muted);
+            padding: 3rem 1.5rem;
+            background: var(--card);
+            border: 1px dashed var(--line);
+            border-radius: 16px;
+            line-height: 1.7;
+        }
+        .empty strong { display: block; font-size: 1.1rem; color: var(--ink); margin-bottom: 0.5rem; }
+        .empty a { color: var(--accent); }
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after { transition-duration: .01ms !important; }
+        }
+        @media (max-width: 520px) {
+            .entry-body { padding: 1.25rem 1.15rem 1rem; }
+            .entry-foot { padding: 0.9rem 1.15rem 1rem; }
+            .entry-figure img { height: 200px; }
+        }
         @media (prefers-color-scheme: dark) {
-            body { background-color: #11161c; color: #dce6ee; }
-            header { background: linear-gradient(135deg, #16324f 0%, #1d5c8f 100%); }
-            .entry { background: #1b232c; box-shadow: 0 2px 6px rgba(0,0,0,0.35); }
-            .entry h2 { color: #7fb6e0; }
-            .entry-date { color: #8fa3b5; }
-            .entry img { background: #242f3b; }
+            :root {
+                --bg: #0e141b;
+                --card: #18212b;
+                --ink: #e4ecf3;
+                --muted: #a9b9c7;
+                --faint: #7c8fa0;
+                --line: #263341;
+                --shadow-sm: 0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.3);
+                --shadow-lg: 0 6px 16px rgba(0,0,0,.5), 0 18px 44px rgba(0,0,0,.45);
+            }
+            header {
+                background:
+                    radial-gradient(120% 160% at 15% -20%, rgba(80,150,220,.2) 0%, rgba(80,150,220,0) 55%),
+                    linear-gradient(140deg, #081b30 0%, #123c66 55%, #1d5c92 100%);
+            }
+            .entry-body p:first-of-type::first-letter { color: #7fb6e0; }
         }
     </style>
 </head>
 <body>
     <header>
         <h1>Travel Journal</h1>
-        <a href="index.html">← back to the map</a>
+        <p class="header-sub" id="headerSub"></p>
+        <a class="backlink" href="index.html">← back to the map</a>
     </header>
-    <div class="container" id="entries"></div>
+    <div class="container">
+        <nav class="toc" id="toc"></nav>
+        <div id="entries"></div>
+    </div>
 
     <script src="places.js"></script>
     <script>
@@ -71,34 +214,80 @@
             .filter(p => p.journal)
             .sort((a, b) => (b.date || '') < (a.date || '') ? -1 : 1); // newest first
 
+        const slug = name => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        const prettyDate = iso => {
+            if (!iso) return '';
+            const d = new Date(iso + 'T00:00:00');
+            return isNaN(d) ? iso : d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+        };
+
         const container = document.getElementById('entries');
+        const toc = document.getElementById('toc');
+        const words = withJournal.reduce((n, p) => n + String(p.journal).split(/\s+/).length, 0);
+        document.getElementById('headerSub').textContent = withJournal.length
+            ? `${withJournal.length} ${withJournal.length === 1 ? 'story' : 'stories'} · ${words} words`
+            : 'no stories yet';
+
         if (!withJournal.length) {
-            container.innerHTML = '<div class="empty">No journal entries yet.<br>Open <a href="manage.html">manage.html</a> and write one in the Journal field of any destination.</div>';
+            container.innerHTML = `<div class="empty">
+                <strong>No journal entries yet.</strong>
+                Open <a href="manage.html">manage.html</a>, pick a destination, and write something
+                in its <em>Journal</em> field — it will show up here and behind a
+                “Read the journal” link on the map.</div>`;
+            toc.remove();
         }
+
         withJournal.forEach(p => {
+            const id = slug(p.name);
+
+            const link = document.createElement('a');
+            link.href = '#' + id;
+            link.textContent = p.name;
+            toc.appendChild(link);
+
             const entry = document.createElement('article');
             entry.className = 'entry';
+            entry.id = id;
+
             if (p.images[0]) {
+                const fig = document.createElement('div');
+                fig.className = 'entry-figure';
                 const img = document.createElement('img');
                 img.src = p.images[0];
                 img.alt = p.name;
                 img.loading = 'lazy';
-                entry.appendChild(img);
+                const cap = document.createElement('div');
+                cap.className = 'cap';
+                const h = document.createElement('h2');
+                h.textContent = p.name;
+                const meta = document.createElement('div');
+                meta.className = 'entry-meta';
+                meta.textContent = [prettyDate(p.date), p.country].filter(Boolean).join(' · ');
+                cap.append(h, meta);
+                fig.append(img, cap);
+                entry.appendChild(fig);
             }
+
             const body = document.createElement('div');
             body.className = 'entry-body';
-            const h = document.createElement('h2');
-            h.textContent = p.name;
-            const d = document.createElement('div');
-            d.className = 'entry-date';
-            d.textContent = [p.date, p.country].filter(Boolean).join(' · ');
-            body.append(h, d);
             String(p.journal).split(/\n+/).forEach(par => {
                 const el = document.createElement('p');
                 el.textContent = par;
                 body.appendChild(el);
             });
             entry.appendChild(body);
+
+            const foot = document.createElement('div');
+            foot.className = 'entry-foot';
+            const mapLink = document.createElement('a');
+            mapLink.href = 'index.html';
+            mapLink.textContent = '↗ see it on the map';
+            const count = document.createElement('span');
+            count.className = 'photo-count';
+            count.textContent = p.images.length > 1 ? `${p.images.length} photos` : '';
+            foot.append(mapLink, count);
+            entry.appendChild(foot);
+
             container.appendChild(entry);
         });
     </script>

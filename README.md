@@ -15,10 +15,12 @@ An interactive world map of the places I've been — photo markers, a flight-pat
 - 🧭 **Great-circle route** — dashed arcs connect the stops in trip order, correctly crossing the antimeridian
 - 📅 **Timeline & year filter** — trips order themselves chronologically; chips above the grid filter both cards and markers by year
 - 🖼️ **Albums & lightbox** — places can have multiple photos, shown as a carousel in the popup; click any popup photo for a fullscreen viewer with keyboard/swipe navigation
-- 📖 **Journal** — destinations can carry a long-form story, readable from the popup's "Read the journal" link or collected on [journal.html](https://fanyiyang.github.io/travel-map/journal.html)
+- 📖 **Journal** — destinations can carry a long-form story, readable from the popup's "Read the journal" link or collected on [journal.html](https://fanyiyang.github.io/travel-map/journal.html), a magazine-style reader with cover images, a table of contents, and drop caps
 - 🌙 **Dark mode** — follows the system theme, including a dark map style
 - 📱 **Mobile-friendly** — cooperative gestures (one finger scrolls the page, two fingers move the map) and small-screen layout tweaks
+- 🌍 **Visited countries** — every country you've been to gets a soft blue wash, drawn under the map's labels
 - 📊 **Stats bar** — destinations · countries · since first trip, computed from the data
+- ⌨️ **Keyboard & screen-reader friendly** — cards are real buttons with focus rings, and animations respect `prefers-reduced-motion`
 - ⚡ **Fast** — coordinates are stored in `places.js` (no geocoding calls at load), photos are pre-compressed, card images lazy-load, and the photo grid renders even if the map CDN is down
 
 ### Updating from the browser — no code editing
@@ -31,18 +33,19 @@ An interactive world map of the places I've been — photo markers, a flight-pat
 | File | Purpose |
 | --- | --- |
 | `index.html` | The map page (Mapbox GL JS + Turf.js, no build step) |
-| `places.js` | All destination data: name, note, photos, `[lon, lat]`, date, country |
+| `places.js` | All destination data: name, note, photos, `[lon, lat]`, date, country + ISO code, journal |
 | `add.html` | Browser-based "new destination" publisher |
 | `manage.html` | Browser-based editor for existing destinations |
+| `journal.html` | Long-form journal entries |
 | `*.jpg / *.jpeg` | The photos (≤1600 px, recompressed) |
 
 A destination entry looks like:
 
 ```javascript
-{ "name": "Kyoto, Japan", "description": "Temples and tea", "images": ["kyoto.jpg", "kyoto2.jpg"], "coordinates": [135.7681, 35.0116], "date": "2026-04-05", "country": "Japan" },
+{ "name": "Kyoto, Japan", "description": "Temples and tea", "images": ["kyoto.jpg", "kyoto2.jpg"], "coordinates": [135.7681, 35.0116], "date": "2026-04-05", "country": "Japan", "cc": "JP" },
 ```
 
-`date` and `country` are optional — undated places keep their hand-ordered position in the timeline.
+`date`, `country`/`cc`, and `journal` are optional — undated places keep their hand-ordered position in the timeline, and `cc` (ISO 3166-1 alpha-2) is what shades the country on the map.
 
 ## Running locally
 

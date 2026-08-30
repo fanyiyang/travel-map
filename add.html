@@ -9,6 +9,7 @@
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
     <script src="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.min.js"></script>
     <link rel="stylesheet" href="https://api.mapbox.com/mapbox-gl-js/plugins/mapbox-gl-geocoder/v5.0.0/mapbox-gl-geocoder.css" type="text/css">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>%F0%9F%97%BA%EF%B8%8F</text></svg>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
@@ -296,6 +297,7 @@
 
         // Reverse-geocode the pin into the country field (unless typed by hand).
         let countryAuto = true;
+        let autoCc = '';
         $('placeCountry').addEventListener('input', () => { countryAuto = !$('placeCountry').value; updateSnippet(); });
         async function fillCountry() {
             if (!coordinates || !countryAuto) return;
@@ -304,6 +306,9 @@
                 const data = await res.json();
                 if (countryAuto && data.features && data.features.length) {
                     $('placeCountry').value = data.features[0].text;
+                    // ISO 3166-1 alpha-2, used to shade the country on the map
+                    autoCc = (data.features[0].properties || {}).short_code || '';
+                    autoCc = autoCc.toUpperCase().slice(0, 2);
                     updateSnippet();
                 }
             } catch (e) { /* stats field is optional — fine to leave empty */ }
@@ -380,6 +385,7 @@
             };
             if ($('placeDate').value) entry.date = $('placeDate').value;
             if ($('placeCountry').value.trim()) entry.country = $('placeCountry').value.trim();
+            if (autoCc) entry.cc = autoCc;
             if ($('placeJournal').value.trim()) entry.journal = $('placeJournal').value.trim();
             return entry;
         }
@@ -408,8 +414,9 @@
         const PLACES_HEADER =
 `// Travel destinations shown on the map, in trip order.
 // Coordinates are [longitude, latitude]; images is a list (first one is the cover).
-// Optional: date (YYYY-MM-DD) drives the timeline and year filter; country feeds
-// the stats bar; journal is long-form text shown on journal.html.
+// Optional: date (YYYY-MM-DD) drives the timeline and year filter; country + cc
+// (ISO 3166-1 alpha-2) feed the stats bar and the visited-country shading;
+// journal is long-form text shown on journal.html.
 // Add new entries with add.html, edit them with manage.html, or edit by hand —
 // keep the array valid JSON (double quotes, no trailing comment lines inside).
 window.PLACES = [
