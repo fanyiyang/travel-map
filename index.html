@@ -728,9 +728,11 @@
                         'source-layer': 'country_boundaries',
                         filter: ['in', ['get', 'iso_3166_1'], ['literal', visited]],
                         paint: {
-                            'fill-color': '#2f86d1',
-                            'fill-opacity': 0.26,
-                            'fill-outline-color': 'rgba(30,95,158,0.8)'
+                            // warm coral, deliberately off the blue used by the
+                            // route, markers and clusters so it reads separately
+                            'fill-color': '#ff6b4a',
+                            'fill-opacity': 0.3,
+                            'fill-outline-color': 'rgba(214,70,40,0.85)'
                         }
                     }, firstLabel);
                 }

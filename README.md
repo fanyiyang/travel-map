@@ -18,7 +18,7 @@ An interactive world map of the places I've been — photo markers, a flight-pat
 - 📖 **Journal** — destinations can carry a long-form story, readable from the popup's "Read the journal" link or collected on [journal.html](https://fanyiyang.github.io/travel-map/journal.html), a magazine-style reader with cover images, a table of contents, and drop caps
 - 🌙 **Dark mode** — follows the system theme, including a dark map style
 - 📱 **Mobile-friendly** — cooperative gestures (one finger scrolls the page, two fingers move the map) and small-screen layout tweaks
-- 🌍 **Visited countries** — every country you've been to gets a soft blue wash, drawn under the map's labels
+- 🌍 **Visited countries** — every country you've been to gets a warm coral wash, drawn under the map's labels
 - 📊 **Stats bar** — destinations · countries · since first trip, computed from the data
 - ⌨️ **Keyboard & screen-reader friendly** — cards are real buttons with focus rings, and animations respect `prefers-reduced-motion`
 - ⚡ **Fast** — coordinates are stored in `places.js` (no geocoding calls at load), photos are pre-compressed, card images lazy-load, and the photo grid renders even if the map CDN is down
