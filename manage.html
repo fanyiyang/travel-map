@@ -274,13 +274,18 @@
                 }
 
                 setStatus('Updating places.js…');
-                const cur = await gh(`/repos/${repo}/contents/places.js?ref=${encodeURIComponent(branch)}`, token);
-                await ghPutFile(repo, token, {
-                    path: 'places.js',
-                    content: b64encodeText(serializePlaces(placesData)),
-                    message: 'Update destinations via manage.html',
+                await ghCommitPlaces(repo, token, {
                     branch,
-                    sha: cur.sha
+                    message: 'Update destinations via manage.html',
+                    build: remote => {
+                        // This page edits entries but never removes them, so any
+                        // entry on GitHub we don't know about was added elsewhere
+                        // (e.g. add.html in another tab) — keep it.
+                        const known = new Set(placesData.flatMap(p => p.images));
+                        const added = remote.filter(p => !(p.images || []).some(img => known.has(img)));
+                        return [...placesData, ...added];
+                    },
+                    onRetry: n => setStatus(`GitHub had an out-of-date copy — retrying (${n}/4)…`)
                 });
                 document.querySelectorAll('.card.dirty').forEach(c => c.classList.remove('dirty'));
                 render();
