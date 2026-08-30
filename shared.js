@@ -104,6 +104,49 @@ async function ghPutFile(repo, token, { path, content, message, branch, sha }) {
     });
 }
 
+// Read a file's content + blob sha. The contents endpoint sits behind a cache
+// that can keep serving the pre-write sha for a minute or so after a commit,
+// and writing with that stale sha fails as "<path> does not match <sha>" — so
+// every read is cache-busted.
+async function ghGetFile(repo, token, { path, branch }) {
+    const url = `/repos/${repo}/contents/${encodeURIComponent(path)}`
+        + `?ref=${encodeURIComponent(branch)}&_=${Date.now()}`;
+    return gh(url, token, { headers: { 'Cache-Control': 'no-cache' } });
+}
+
+function isStaleShaError(err) {
+    return /does not match|is at .* but expected|409/i.test(err.message || '');
+}
+
+// Read places.js, hand the parsed list to `build`, and commit the result.
+// If GitHub rejects the write because our sha was stale, wait, read again and
+// rebuild on top of the fresh list rather than failing the save.
+async function ghCommitPlaces(repo, token, { branch, message, build, onRetry }) {
+    let lastErr;
+    for (let attempt = 1; attempt <= 4; attempt++) {
+        const cur = await ghGetFile(repo, token, { path: 'places.js', branch });
+        const list = build(parsePlaces(b64decodeText(cur.content)));
+        try {
+            return await ghPutFile(repo, token, {
+                path: 'places.js',
+                content: b64encodeText(serializePlaces(list)),
+                message,
+                branch,
+                sha: cur.sha
+            });
+        } catch (err) {
+            if (!isStaleShaError(err)) throw err;
+            lastErr = err;
+            if (onRetry) onRetry(attempt);
+            await new Promise(r => setTimeout(r, 900 * attempt));
+        }
+    }
+    throw new Error(
+        `GitHub kept reporting an out-of-date copy of places.js (${lastErr.message}). `
+        + 'Wait a moment and try again — your photos are already uploaded.'
+    );
+}
+
 // --- shared page bits -------------------------------------------------
 
 // Both pages remember the repo/branch/token under the same keys, so a token

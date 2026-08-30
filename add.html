@@ -413,13 +413,12 @@
             $('publishBtn').disabled = true;
             try {
                 setStatus('Reading current places.js…');
-                const cur = await gh(`/repos/${repo}/contents/places.js?ref=${encodeURIComponent(branch)}`, token);
-                const list = parsePlaces(b64decodeText(cur.content));
-
-                const taken = new Set(list.flatMap(p => p.images || []));
+                // Check the filenames against the live file before uploading.
+                const existing = parsePlaces(b64decodeText(
+                    (await ghGetFile(repo, token, { path: 'places.js', branch })).content));
+                const taken = new Set(existing.flatMap(p => p.images || []));
                 const clash = entry.images.find(n => taken.has(n));
                 if (clash) throw new Error(`A destination already uses the filename "${clash}" — pick another name.`);
-                list.push(entry);
 
                 for (let i = 0; i < photoFiles.length; i++) {
                     setStatus(`Compressing and uploading photo ${i + 1} of ${photoFiles.length}…`);
@@ -432,12 +431,12 @@
                 }
 
                 setStatus('Updating places.js…');
-                await ghPutFile(repo, token, {
-                    path: 'places.js',
-                    content: b64encodeText(serializePlaces(list)),
-                    message: `Add ${entry.name} to travel map`,
+                await ghCommitPlaces(repo, token, {
                     branch,
-                    sha: cur.sha
+                    message: `Add ${entry.name} to travel map`,
+                    // re-runs against freshly read data if the first write conflicts
+                    build: list => [...list, entry],
+                    onRetry: n => setStatus(`GitHub had an out-of-date copy — retrying (${n}/4)…`)
                 });
 
                 setStatus(`Published! "${entry.name}" is now in the repository.\nThe live site refreshes in a minute or two once GitHub Pages rebuilds.`, 'ok');
