@@ -37,6 +37,7 @@ An interactive world map of the places I've been — photo markers, a flight-pat
 | `add.html` | Browser-based "new destination" publisher |
 | `manage.html` | Browser-based editor for existing destinations |
 | `journal.html` | Long-form journal entries |
+| `shared.js` | Helpers shared by the two publishing pages (file format, GitHub API, image compression) |
 | `*.jpg / *.jpeg` | The photos (≤1600 px, recompressed) |
 
 A destination entry looks like:
