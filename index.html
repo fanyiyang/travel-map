@@ -11,6 +11,7 @@
     <meta property="og:url" content="https://fanyiyang.github.io/travel-map/">
     <meta name="twitter:card" content="summary_large_image">
     <title>My Travel Adventures</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>%F0%9F%97%BA%EF%B8%8F</text></svg>">
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
@@ -115,22 +116,44 @@
             gap: 1.6rem;
         }
         .place-card {
+            /* it is a <button>, so reset the UA button styling first */
+            appearance: none;
+            font: inherit;
+            text-align: left;
+            padding: 0;
+            width: 100%;
+            display: block;
             background-color: var(--card);
             border-radius: 16px;
             overflow: hidden;
             box-shadow: var(--shadow-sm);
             border: 1px solid var(--line);
-            transition: transform 0.28s ease, box-shadow 0.28s ease, border-color 0.28s ease;
+            transition: transform .3s cubic-bezier(.2,.7,.3,1), box-shadow .3s ease, border-color .3s ease;
             cursor: pointer;
             position: relative;
         }
-        .place-card:hover {
+        .place-card:hover,
+        .place-card:focus-visible {
             transform: translateY(-6px);
             box-shadow: var(--shadow-lg);
+        }
+        .place-card:focus-visible {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(47,134,209,.45), var(--shadow-lg);
+        }
+        .place-card:active {
+            transform: translateY(-2px);
+            transition-duration: .1s;
         }
         .place-card.active {
             border-color: var(--accent);
             box-shadow: 0 0 0 2px rgba(47,134,209,.3), var(--shadow-lg);
+        }
+        .place-thumb {
+            display: block;
+            position: relative;
+            overflow: hidden;
         }
         .place-image {
             width: 100%;
@@ -138,12 +161,24 @@
             object-fit: cover;
             display: block;
             background-color: var(--line);
-            transition: transform 0.5s ease;
+            transition: transform .55s cubic-bezier(.2,.7,.3,1);
             cursor: pointer;
         }
-        .place-card:hover .place-image {
-            transform: scale(1.06);
+        .place-card:hover .place-image,
+        .place-card:focus-visible .place-image {
+            transform: scale(1.07);
         }
+        /* subtle darkening sweep that lifts as the card is hovered */
+        .thumb-veil {
+            position: absolute;
+            inset: 0;
+            background: linear-gradient(to top, rgba(8,22,38,.32), rgba(8,22,38,0) 55%);
+            opacity: 1;
+            transition: opacity .35s ease;
+            pointer-events: none;
+        }
+        .place-card:hover .thumb-veil,
+        .place-card:focus-visible .thumb-veil { opacity: 0.35; }
         .photo-badge {
             position: absolute;
             top: 0.65rem;
@@ -154,8 +189,20 @@
             font-size: 0.72rem;
             border-radius: 999px;
             padding: 0.18rem 0.6rem;
+            transform: translateY(-4px);
+            opacity: 0;
+            transition: opacity .3s ease, transform .3s ease;
+        }
+        .place-card .photo-badge { opacity: .92; transform: none; }
+        .journal-badge {
+            top: auto;
+            bottom: 0.65rem;
+            right: auto;
+            left: 0.65rem;
+            background: rgba(47,134,209,.85);
         }
         .place-info {
+            display: block;
             padding: 1rem 1.1rem 1.15rem;
         }
         .place-name {
@@ -167,7 +214,10 @@
             font-size: 1.08rem;
             font-weight: 700;
             color: var(--ink);
+            transition: color .25s ease;
         }
+        .place-card:hover .place-name,
+        .place-card:focus-visible .place-name { color: var(--accent); }
         .year-badge {
             font-size: 0.72rem;
             font-weight: 700;
@@ -178,6 +228,7 @@
             flex-shrink: 0;
         }
         .place-description {
+            display: block;
             margin: 0;
             color: var(--muted);
             font-size: 0.92rem;
@@ -244,8 +295,27 @@
             color: var(--accent);
             text-decoration: none;
         }
-        footer a:hover {
-            text-decoration: underline;
+
+        footer a {
+            position: relative;
+            padding-bottom: 2px;
+        }
+        footer a::after {
+            content: '';
+            position: absolute;
+            left: 0;
+            bottom: 0;
+            width: 100%;
+            height: 1px;
+            background: currentColor;
+            transform: scaleX(0);
+            transform-origin: right;
+            transition: transform .25s ease;
+        }
+        footer a:hover::after,
+        footer a:focus-visible::after {
+            transform: scaleX(1);
+            transform-origin: left;
         }
 
         /* --- Lightbox (fullscreen photo viewer) --- */
@@ -356,6 +426,15 @@
             color: var(--faint);
         }
 
+        /* --- Motion preferences --- */
+        @media (prefers-reduced-motion: reduce) {
+            *, *::before, *::after {
+                animation-duration: .01ms !important;
+                transition-duration: .01ms !important;
+                scroll-behavior: auto !important;
+            }
+        }
+
         /* --- Small screens --- */
         @media (max-width: 520px) {
             header { padding-bottom: 4.2rem; }
@@ -455,17 +534,27 @@
         // --- Photo cards (render before any map work so they never depend on Mapbox) ---
         const placeGrid = document.getElementById('placeGrid');
         const cards = places.map(place => {
-            const card = document.createElement('div');
+            // A real button so the grid is reachable by keyboard and announced
+            // to screen readers, styled to look like the card it replaces.
+            const card = document.createElement('button');
+            card.type = 'button';
             card.className = 'place-card';
+            card.setAttribute('aria-label', `${place.name} — show on the map`);
             const year = place.date ? `<span class="year-badge">${place.date.slice(0, 4)}</span>` : '';
-            const badge = place.images.length > 1 ? `<span class="photo-badge">${place.images.length} photos</span>` : '';
+            const badges = [
+                place.images.length > 1 ? `<span class="photo-badge">${place.images.length} photos</span>` : '',
+                place.journal ? '<span class="photo-badge journal-badge" title="Has a journal entry">✎ journal</span>' : ''
+            ].join('');
             card.innerHTML = `
-                <img src="${place.images[0] || ''}" alt="${place.name}" class="place-image" loading="lazy">
-                ${badge}
-                <div class="place-info">
-                    <h2 class="place-name">${place.name}${year}</h2>
-                    <p class="place-description">${place.description}</p>
-                </div>
+                <span class="place-thumb">
+                    <img src="${place.images[0] || ''}" alt="${place.name}" class="place-image" loading="lazy">
+                    <span class="thumb-veil"></span>
+                </span>
+                ${badges}
+                <span class="place-info">
+                    <span class="place-name">${place.name}${year}</span>
+                    <span class="place-description">${place.description}</span>
+                </span>
             `;
             placeGrid.appendChild(card);
             return card;
@@ -622,6 +711,30 @@
                     });
                 }
 
+                // Soft wash over every visited country, drawn under the map's
+                // own labels so place names stay readable.
+                const visited = [...new Set(places.map(p => p.cc).filter(Boolean))];
+                if (visited.length) {
+                    const firstLabel = (map.getStyle().layers.find(l =>
+                        l.type === 'symbol' && l.layout && l.layout['text-field']) || {}).id;
+                    map.addSource('country-boundaries', {
+                        type: 'vector',
+                        url: 'mapbox://mapbox.country-boundaries-v1'
+                    });
+                    map.addLayer({
+                        id: 'visited-countries',
+                        type: 'fill',
+                        source: 'country-boundaries',
+                        'source-layer': 'country_boundaries',
+                        filter: ['in', ['get', 'iso_3166_1'], ['literal', visited]],
+                        paint: {
+                            'fill-color': '#2f86d1',
+                            'fill-opacity': 0.26,
+                            'fill-outline-color': 'rgba(30,95,158,0.8)'
+                        }
+                    }, firstLabel);
+                }
+
                 await Promise.all(places.map(async (place, i) => {
                     try {
                         map.addImage(`photo-${i}`, await markerIcon(place.images[0]), { pixelRatio: 2 });
@@ -631,6 +744,7 @@
                 // at low zoom and separate as you zoom in.
                 map.addSource('places', {
                     type: 'geojson',
+                    generateId: true, // needed for the hover feature-state
                     cluster: true,
                     clusterRadius: 44,
                     clusterMaxZoom: 11,
@@ -642,8 +756,9 @@
                     source: 'places',
                     filter: ['has', 'point_count'],
                     paint: {
-                        'circle-color': '#3498db',
-                        'circle-radius': 22,
+                        'circle-color': '#2f86d1',
+                        'circle-radius': ['case', ['boolean', ['feature-state', 'hover'], false], 25, 22],
+                        'circle-radius-transition': { duration: 180 },
                         'circle-stroke-width': 3,
                         'circle-stroke-color': '#fff'
                     }
@@ -661,14 +776,47 @@
                     },
                     paint: { 'text-color': '#ffffff' }
                 });
+                // Hover highlight: a ring that grows behind the photo icon.
+                // (icon-size is a layout property and cannot read feature-state,
+                // so the hover effect lives in this circle layer's paint instead.)
+                map.addLayer({
+                    id: 'place-halo',
+                    type: 'circle',
+                    source: 'places',
+                    filter: ['!', ['has', 'point_count']],
+                    paint: {
+                        'circle-color': 'rgba(0,0,0,0)',
+                        'circle-radius': ['case', ['boolean', ['feature-state', 'hover'], false], 30, 24],
+                        'circle-stroke-color': '#2f86d1',
+                        'circle-stroke-width': ['case', ['boolean', ['feature-state', 'hover'], false], 3, 0],
+                        'circle-radius-transition': { duration: 200 },
+                        'circle-stroke-width-transition': { duration: 200 }
+                    }
+                });
                 map.addLayer({
                     id: 'places',
                     type: 'symbol',
                     source: 'places',
                     filter: ['!', ['has', 'point_count']],
-                    layout: { 'icon-image': ['get', 'icon'], 'icon-allow-overlap': true }
+                    layout: {
+                        'icon-image': ['get', 'icon'],
+                        'icon-allow-overlap': true
+                    }
                 });
                 map.on('click', 'places', e => window.openPopup(e.features[0].properties.index));
+
+                let hovered = null;
+                map.on('mousemove', 'places', e => {
+                    const id = e.features[0].id;
+                    if (hovered === id) return;
+                    if (hovered !== null) map.setFeatureState({ source: 'places', id: hovered }, { hover: false });
+                    hovered = id;
+                    map.setFeatureState({ source: 'places', id: hovered }, { hover: true });
+                });
+                map.on('mouseleave', 'places', () => {
+                    if (hovered !== null) map.setFeatureState({ source: 'places', id: hovered }, { hover: false });
+                    hovered = null;
+                });
                 map.on('click', 'clusters', e => {
                     const f = e.features[0];
                     map.getSource('places').getClusterExpansionZoom(f.properties.cluster_id, (err, zoom) => {
@@ -679,9 +827,25 @@
                     map.on('mouseenter', layer, () => { map.getCanvas().style.cursor = 'pointer'; });
                     map.on('mouseleave', layer, () => { map.getCanvas().style.cursor = ''; });
                 });
+
+                let hoveredCluster = null;
+                map.on('mousemove', 'clusters', e => {
+                    const id = e.features[0].id;
+                    if (hoveredCluster === id) return;
+                    if (hoveredCluster !== null) map.setFeatureState({ source: 'places', id: hoveredCluster }, { hover: false });
+                    hoveredCluster = id;
+                    map.setFeatureState({ source: 'places', id: hoveredCluster }, { hover: true });
+                });
+                map.on('mouseleave', 'clusters', () => {
+                    if (hoveredCluster !== null) map.setFeatureState({ source: 'places', id: hoveredCluster }, { hover: false });
+                    hoveredCluster = null;
+                });
                 applyYearFilter(selectedYear);
 
-                if (segments.length) animatePlane(segments.flat());
+                // Skip the fly-through for visitors who ask for reduced motion.
+                if (segments.length && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                    animatePlane(segments.flat());
+                }
             });
 
             // A little plane flies the whole route once when the page opens.

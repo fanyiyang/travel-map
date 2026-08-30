@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex">
     <title>Manage Destinations — My Travel Adventures</title>
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>%F0%9F%97%BA%EF%B8%8F</text></svg>">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
@@ -138,8 +139,9 @@
         const PLACES_HEADER =
 `// Travel destinations shown on the map, in trip order.
 // Coordinates are [longitude, latitude]; images is a list (first one is the cover).
-// Optional: date (YYYY-MM-DD) drives the timeline and year filter; country feeds
-// the stats bar; journal is long-form text shown on journal.html.
+// Optional: date (YYYY-MM-DD) drives the timeline and year filter; country + cc
+// (ISO 3166-1 alpha-2) feed the stats bar and the visited-country shading;
+// journal is long-form text shown on journal.html.
 // Add new entries with add.html, edit them with manage.html, or edit by hand —
 // keep the array valid JSON (double quotes, no trailing comment lines inside).
 window.PLACES = [
