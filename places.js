@@ -6,7 +6,7 @@
 // Add new entries with add.html, edit them with manage.html, or edit by hand —
 // keep the array valid JSON (double quotes, no trailing comment lines inside).
 window.PLACES = [
-  {"name":"Hokkaido, Japan","description":"Clean, snow, 北大, pre-covid","images":["IMG_20190728_100216.JPG"],"coordinates":[141.3545,43.0618],"date":"2019-07-28","country":"Japan","cc":"JP"},
+  {"name":"Hokkaido, Japan","description":"Clean, snow, 北大, pre-covid","images":["IMG_20190728_100216.JPG"],"coordinates":[141.3545,43.0618],"date":"2019-07-28","country":"Japan","cc":"JP","journal":"Family trip"},
   {"name":"Singapore","description":"The City of Light","images":["IMG_0135.jpeg"],"coordinates":[103.8198,1.3521],"country":"Singapore","cc":"SG"},
   {"name":"New York City, USA","description":"$","images":["NY.jpeg"],"coordinates":[-74.006,40.7128],"date":"2024-03-18","country":"United States","cc":"US"},
   {"name":"Boston, USA","description":"$","images":["01788763-188B-4708-84A9-A9D9FB32ABE9_1_105_c.jpeg"],"coordinates":[-71.0589,42.3601],"date":"2024-03-23","country":"United States","cc":"US"},
