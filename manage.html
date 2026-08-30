@@ -131,87 +131,19 @@
         </div>
     </div>
 
+    <script src="shared.js"></script>
     <script>
         const $ = id => document.getElementById(id);
         let placesData = [];   // working copy, edited in place
         let newFiles = [];     // per-place File objects pending upload
 
-        const PLACES_HEADER =
-`// Travel destinations shown on the map, in trip order.
-// Coordinates are [longitude, latitude]; images is a list (first one is the cover).
-// Optional: date (YYYY-MM-DD) drives the timeline and year filter; country + cc
-// (ISO 3166-1 alpha-2) feed the stats bar and the visited-country shading;
-// journal is long-form text shown on journal.html.
-// Add new entries with add.html, edit them with manage.html, or edit by hand —
-// keep the array valid JSON (double quotes, no trailing comment lines inside).
-window.PLACES = [
-`;
-
-        // --- shared helpers (same as add.html) ---
-        function b64encodeText(text) {
-            const bytes = new TextEncoder().encode(text);
-            let bin = '';
-            bytes.forEach(b => { bin += String.fromCharCode(b); });
-            return btoa(bin);
-        }
-        function fileToBase64(file) {
-            return new Promise((resolve, reject) => {
-                const r = new FileReader();
-                r.onload = () => resolve(r.result.split(',')[1]);
-                r.onerror = reject;
-                r.readAsDataURL(file);
-            });
-        }
-        async function compressImage(file) {
-            if (file.size < 500 * 1024 || !/^image\/(jpeg|png|webp)$/.test(file.type)) return file;
-            try {
-                const bmp = await createImageBitmap(file);
-                const scale = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
-                const canvas = document.createElement('canvas');
-                canvas.width = Math.round(bmp.width * scale);
-                canvas.height = Math.round(bmp.height * scale);
-                canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
-                const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.8));
-                return (blob && blob.size < file.size) ? blob : file;
-            } catch (e) { return file; }
-        }
-        async function gh(path, token, opts = {}) {
-            const res = await fetch(`https://api.github.com${path}`, {
-                ...opts,
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Accept': 'application/vnd.github+json',
-                    'X-GitHub-Api-Version': '2022-11-28',
-                    ...(opts.headers || {})
-                }
-            });
-            const body = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(body.message || `GitHub API error ${res.status}`);
-            return body;
-        }
-        function setStatus(msg, cls) {
-            $('status').textContent = msg;
-            $('status').className = cls || '';
-        }
-
         // --- GitHub settings persistence (shared keys with add.html) ---
-        $('ghRepo').value = localStorage.getItem('tm_repo') || $('ghRepo').value;
-        $('ghBranch').value = localStorage.getItem('tm_branch') || $('ghBranch').value;
-        if (localStorage.getItem('tm_token')) {
-            $('ghToken').value = localStorage.getItem('tm_token');
-            $('rememberToken').checked = true;
-        }
+        loadGhSettings({ repo: $('ghRepo'), branch: $('ghBranch'), token: $('ghToken'), remember: $('rememberToken') });
 
         // --- Load current data (cache-busted so edits are based on the latest file) ---
         async function loadPlaces() {
             const res = await fetch(`places.js?t=${Date.now()}`);
-            const text = await res.text();
-            const arrStart = text.indexOf('[', text.indexOf('window.PLACES'));
-            if (arrStart < 1) throw new Error('Could not parse places.js');
-            return JSON.parse(text.slice(arrStart, text.lastIndexOf(']') + 1)).map(p => {
-                if (p.image && !p.images) { const { image, ...rest } = p; return { ...rest, images: [image] }; }
-                return p;
-            });
+            return parsePlaces(await res.text());
         }
 
         function render() {
@@ -319,10 +251,7 @@ window.PLACES = [
             if (!token) return setStatus('Paste your GitHub token.', 'err');
             if (placesData.some(p => !p.name)) return setStatus('Every destination needs a name.', 'err');
 
-            localStorage.setItem('tm_repo', repo);
-            localStorage.setItem('tm_branch', branch);
-            if ($('rememberToken').checked) localStorage.setItem('tm_token', token);
-            else localStorage.removeItem('tm_token');
+            saveGhSettings({ repo, branch, token, remember: $('rememberToken').checked });
 
             $('saveBtn').disabled = true;
             try {
@@ -332,13 +261,11 @@ window.PLACES = [
                     for (const f of (newFiles[i] || [])) {
                         if (taken.has(f.cleanName)) throw new Error(`Filename "${f.cleanName}" is already used — rename the file first.`);
                         setStatus(`Uploading ${f.cleanName}…`);
-                        await gh(`/repos/${repo}/contents/${encodeURIComponent(f.cleanName)}`, token, {
-                            method: 'PUT',
-                            body: JSON.stringify({
-                                message: `Add photo for ${placesData[i].name}`,
-                                content: await fileToBase64(await compressImage(f)),
-                                branch
-                            })
+                        await ghPutFile(repo, token, {
+                            path: f.cleanName,
+                            content: await fileToBase64(await compressImage(f)),
+                            message: `Add photo for ${placesData[i].name}`,
+                            branch
                         });
                         placesData[i].images.push(f.cleanName);
                         taken.add(f.cleanName);
@@ -348,17 +275,12 @@ window.PLACES = [
 
                 setStatus('Updating places.js…');
                 const cur = await gh(`/repos/${repo}/contents/places.js?ref=${encodeURIComponent(branch)}`, token);
-                const newText = PLACES_HEADER
-                    + placesData.map(p => '  ' + JSON.stringify(p)).join(',\n')
-                    + '\n];\n';
-                await gh(`/repos/${repo}/contents/places.js`, token, {
-                    method: 'PUT',
-                    body: JSON.stringify({
-                        message: 'Update destinations via manage.html',
-                        content: b64encodeText(newText),
-                        sha: cur.sha,
-                        branch
-                    })
+                await ghPutFile(repo, token, {
+                    path: 'places.js',
+                    content: b64encodeText(serializePlaces(placesData)),
+                    message: 'Update destinations via manage.html',
+                    branch,
+                    sha: cur.sha
                 });
                 document.querySelectorAll('.card.dirty').forEach(c => c.classList.remove('dirty'));
                 render();

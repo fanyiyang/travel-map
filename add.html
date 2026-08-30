@@ -174,6 +174,7 @@
         </div>
     </div>
 
+    <script src="shared.js"></script>
     <script>
         mapboxgl.accessToken = 'pk.eyJ1IjoiZmFueWl5YW5nMjMzIiwiYSI6ImNseG56dHp1dTA5cmQyanB4MDlyNXB5YjAifQ.dXU4lx12g2LDUhENBR_UGA';
 
@@ -250,21 +251,6 @@
                 }
                 return null;
             }
-        }
-
-        // --- Client-side compression: downscale to ≤1600px JPEG so the site stays fast ---
-        async function compressImage(file) {
-            if (file.size < 500 * 1024 || !/^image\/(jpeg|png|webp)$/.test(file.type)) return file;
-            try {
-                const bmp = await createImageBitmap(file); // applies EXIF orientation
-                const scale = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
-                const canvas = document.createElement('canvas');
-                canvas.width = Math.round(bmp.width * scale);
-                canvas.height = Math.round(bmp.height * scale);
-                canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
-                const blob = await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.8));
-                return (blob && blob.size < file.size) ? blob : file;
-            } catch (e) { return file; } // e.g. HEIC the browser can't decode — upload as-is
         }
 
         // --- Location picker ---
@@ -403,64 +389,9 @@
         });
 
         // --- GitHub settings persistence ---
-        $('ghRepo').value = localStorage.getItem('tm_repo') || $('ghRepo').value;
-        $('ghBranch').value = localStorage.getItem('tm_branch') || $('ghBranch').value;
-        if (localStorage.getItem('tm_token')) {
-            $('ghToken').value = localStorage.getItem('tm_token');
-            $('rememberToken').checked = true;
-        }
+        loadGhSettings({ repo: $('ghRepo'), branch: $('ghBranch'), token: $('ghToken'), remember: $('rememberToken') });
 
         // --- Publish ---
-        const PLACES_HEADER =
-`// Travel destinations shown on the map, in trip order.
-// Coordinates are [longitude, latitude]; images is a list (first one is the cover).
-// Optional: date (YYYY-MM-DD) drives the timeline and year filter; country + cc
-// (ISO 3166-1 alpha-2) feed the stats bar and the visited-country shading;
-// journal is long-form text shown on journal.html.
-// Add new entries with add.html, edit them with manage.html, or edit by hand —
-// keep the array valid JSON (double quotes, no trailing comment lines inside).
-window.PLACES = [
-`;
-
-        function b64encodeText(text) {
-            const bytes = new TextEncoder().encode(text);
-            let bin = '';
-            bytes.forEach(b => { bin += String.fromCharCode(b); });
-            return btoa(bin);
-        }
-        function b64decodeText(b64) {
-            const bin = atob(b64.replace(/\n/g, ''));
-            const bytes = Uint8Array.from(bin, c => c.charCodeAt(0));
-            return new TextDecoder().decode(bytes);
-        }
-        function fileToBase64(file) {
-            return new Promise((resolve, reject) => {
-                const r = new FileReader();
-                r.onload = () => resolve(r.result.split(',')[1]);
-                r.onerror = reject;
-                r.readAsDataURL(file);
-            });
-        }
-
-        async function gh(path, token, opts = {}) {
-            const res = await fetch(`https://api.github.com${path}`, {
-                ...opts,
-                headers: {
-                    'Authorization': `Bearer ${token}`,
-                    'Accept': 'application/vnd.github+json',
-                    'X-GitHub-Api-Version': '2022-11-28',
-                    ...(opts.headers || {})
-                }
-            });
-            const body = await res.json().catch(() => ({}));
-            if (!res.ok) throw new Error(body.message || `GitHub API error ${res.status}`);
-            return body;
-        }
-
-        function setStatus(msg, cls) {
-            $('status').textContent = msg;
-            $('status').className = cls || '';
-        }
 
         $('publishBtn').addEventListener('click', async () => {
             const entry = currentEntry();
@@ -477,56 +408,36 @@ window.PLACES = [
             if (!/^[^/]+\/[^/]+$/.test(repo)) return setStatus('Repository must look like owner/name.', 'err');
             if (!token) return setStatus('Paste your GitHub token.', 'err');
 
-            localStorage.setItem('tm_repo', repo);
-            localStorage.setItem('tm_branch', branch);
-            if ($('rememberToken').checked) localStorage.setItem('tm_token', token);
-            else localStorage.removeItem('tm_token');
+            saveGhSettings({ repo, branch, token, remember: $('rememberToken').checked });
 
             $('publishBtn').disabled = true;
             try {
                 setStatus('Reading current places.js…');
                 const cur = await gh(`/repos/${repo}/contents/places.js?ref=${encodeURIComponent(branch)}`, token);
-                const text = b64decodeText(cur.content);
-                // The array starts after "window.PLACES =" — searching from the
-                // top would match the "[longitude, latitude]" in the header comment.
-                const arrStart = text.indexOf('[', text.indexOf('window.PLACES'));
-                if (arrStart < 1) throw new Error('Could not find the places array in places.js.');
-                // Normalize any old-schema entries ({image: "..."}) to {images: [...]}.
-                const list = JSON.parse(text.slice(arrStart, text.lastIndexOf(']') + 1)).map(p => {
-                    if (p.image && !p.images) { const { image, ...rest } = p; return { ...rest, images: [image] }; }
-                    return p;
-                });
+                const list = parsePlaces(b64decodeText(cur.content));
 
                 const taken = new Set(list.flatMap(p => p.images || []));
                 const clash = entry.images.find(n => taken.has(n));
                 if (clash) throw new Error(`A destination already uses the filename "${clash}" — pick another name.`);
                 list.push(entry);
-                const newText = PLACES_HEADER
-                    + list.map(p => '  ' + JSON.stringify(p)).join(',\n')
-                    + '\n];\n';
 
                 for (let i = 0; i < photoFiles.length; i++) {
                     setStatus(`Compressing and uploading photo ${i + 1} of ${photoFiles.length}…`);
-                    const blob = await compressImage(photoFiles[i]);
-                    await gh(`/repos/${repo}/contents/${encodeURIComponent(entry.images[i])}`, token, {
-                        method: 'PUT',
-                        body: JSON.stringify({
-                            message: `Add photo for ${entry.name}`,
-                            content: await fileToBase64(blob),
-                            branch
-                        })
+                    await ghPutFile(repo, token, {
+                        path: entry.images[i],
+                        content: await fileToBase64(await compressImage(photoFiles[i])),
+                        message: `Add photo for ${entry.name}`,
+                        branch
                     });
                 }
 
                 setStatus('Updating places.js…');
-                await gh(`/repos/${repo}/contents/places.js`, token, {
-                    method: 'PUT',
-                    body: JSON.stringify({
-                        message: `Add ${entry.name} to travel map`,
-                        content: b64encodeText(newText),
-                        sha: cur.sha,
-                        branch
-                    })
+                await ghPutFile(repo, token, {
+                    path: 'places.js',
+                    content: b64encodeText(serializePlaces(list)),
+                    message: `Add ${entry.name} to travel map`,
+                    branch,
+                    sha: cur.sha
                 });
 
                 setStatus(`Published! "${entry.name}" is now in the repository.\nThe live site refreshes in a minute or two once GitHub Pages rebuilds.`, 'ok');
