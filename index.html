@@ -377,6 +377,21 @@
         }
 
         /* --- Journal overlay --- */
+        .popup-share {
+            display: block;
+            margin-top: 0.5rem;
+            border: 1px solid var(--line);
+            background: transparent;
+            color: var(--muted);
+            border-radius: 999px;
+            padding: 0.2rem 0.7rem;
+            font-size: 0.78rem;
+            cursor: pointer;
+            transition: color .2s ease, border-color .2s ease;
+        }
+        .popup-share:hover { color: var(--accent); border-color: var(--accent); }
+        .popup-share:focus { outline: none; }
+        .popup-share:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
         .popup-journal {
             display: inline-block;
             margin-top: 0.45rem;
@@ -522,6 +537,15 @@
             document.getElementById('map').textContent = 'No destinations found — places.js failed to load.';
         }
 
+        // Each place gets a shareable address: index.html#rome-italy.
+        // journal.html builds its links with the same rule.
+        const slugify = name => name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+        places.forEach(p => { p.slug = slugify(p.name); });
+        const indexFromHash = () => {
+            const h = decodeURIComponent(location.hash.slice(1));
+            return h ? places.findIndex(p => p.slug === h) : -1;
+        };
+
         // Stats bar: destinations · countries · since first dated trip
         const countryCount = new Set(places.map(p => p.country).filter(Boolean)).size;
         const firstYear = places.filter(p => p.date).map(p => p.date.slice(0, 4)).sort()[0];
@@ -540,22 +564,32 @@
             card.type = 'button';
             card.className = 'place-card';
             card.setAttribute('aria-label', `${place.name} — show on the map`);
-            const year = place.date ? `<span class="year-badge">${place.date.slice(0, 4)}</span>` : '';
-            const badges = [
-                place.images.length > 1 ? `<span class="photo-badge">${place.images.length} photos</span>` : '',
-                place.journal ? '<span class="photo-badge journal-badge" title="Has a journal entry">✎ journal</span>' : ''
-            ].join('');
-            card.innerHTML = `
-                <span class="place-thumb">
-                    <img src="${place.images[0] || ''}" alt="${place.name}" class="place-image" loading="lazy">
-                    <span class="thumb-veil"></span>
-                </span>
-                ${badges}
-                <span class="place-info">
-                    <span class="place-name">${place.name}${year}</span>
-                    <span class="place-description">${place.description}</span>
-                </span>
-            `;
+            // Built node by node: names and notes are free text typed in
+            // manage.html, and must never be parsed as HTML.
+            const el = (tag, cls, text) => {
+                const n = document.createElement(tag);
+                if (cls) n.className = cls;
+                if (text !== undefined) n.textContent = text;
+                return n;
+            };
+            const thumb = el('span', 'place-thumb');
+            const img = el('img', 'place-image');
+            img.src = place.images[0] || '';
+            img.alt = place.name;
+            img.loading = 'lazy';
+            thumb.append(img, el('span', 'thumb-veil'));
+            card.appendChild(thumb);
+            if (place.images.length > 1) card.appendChild(el('span', 'photo-badge', `${place.images.length} photos`));
+            if (place.journal) {
+                const j = el('span', 'photo-badge journal-badge', '✎ journal');
+                j.title = 'Has a journal entry';
+                card.appendChild(j);
+            }
+            const info = el('span', 'place-info');
+            const name = el('span', 'place-name', place.name);
+            if (place.date) name.appendChild(el('span', 'year-badge', place.date.slice(0, 4)));
+            info.append(name, el('span', 'place-description', place.description));
+            card.appendChild(info);
             placeGrid.appendChild(card);
             return card;
         });
@@ -624,6 +658,18 @@
                 desc.className = 'popup-description';
                 desc.textContent = place.description;
                 wrap.append(title, desc);
+
+                const share = document.createElement('button');
+                share.type = 'button';
+                share.className = 'popup-share';
+                share.textContent = '🔗 Copy link';
+                share.addEventListener('click', async () => {
+                    const url = location.href.split('#')[0] + '#' + place.slug;
+                    try { await navigator.clipboard.writeText(url); share.textContent = '✓ Link copied'; }
+                    catch (e) { prompt('Copy this link:', url); }
+                    setTimeout(() => { share.textContent = '🔗 Copy link'; }, 1600);
+                });
+                wrap.appendChild(share);
 
                 if (place.journal) {
                     const link = document.createElement('a');
@@ -731,7 +777,10 @@
                             // warm coral, deliberately off the blue used by the
                             // route, markers and clusters so it reads separately
                             'fill-color': '#ff6b4a',
-                            'fill-opacity': 0.3,
+                            // full strength at world view; fades out when you
+                            // zoom into a visited country so it doesn't tint
+                            // the whole screen
+                            'fill-opacity': ['interpolate', ['linear'], ['zoom'], 3, 0.3, 6, 0.1, 8, 0],
                             'fill-outline-color': 'rgba(214,70,40,0.85)'
                         }
                     }, firstLabel);
@@ -805,7 +854,7 @@
                         'icon-allow-overlap': true
                     }
                 });
-                map.on('click', 'places', e => window.openPopup(e.features[0].properties.index));
+                map.on('click', 'places', e => goToPlace(e.features[0].properties.index));
 
                 let hovered = null;
                 map.on('mousemove', 'places', e => {
@@ -845,7 +894,10 @@
                 applyYearFilter(selectedYear);
 
                 // Skip the fly-through for visitors who ask for reduced motion.
-                if (segments.length && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+                const linked = indexFromHash();
+                if (linked >= 0) {
+                    selectPlace(linked);        // opened from a share link
+                } else if (segments.length && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
                     animatePlane(segments.flat());
                 }
             });
@@ -929,18 +981,44 @@
             }
         }
 
-        // --- Card interactions ---
-        places.forEach((place, index) => {
-            cards[index].addEventListener('click', () => {
-                document.querySelectorAll('.place-card.active').forEach(c => c.classList.remove('active'));
-                cards[index].classList.add('active');
-                if (!map) return;
-                // gentle, gradual approach — same feel as the original site
-                map.flyTo({ center: place.coordinates, zoom: 9, speed: 0.8, curve: 1 });
-                window.openPopup(index);
-                map.getContainer().scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        // --- Selecting a place (cards, markers, share links, back/forward) ---
+        function selectPlace(index) {
+            const place = places[index];
+            // a share link can point at a place the current year filter hides
+            if (selectedYear !== 'all' && (!place.date || place.date.slice(0, 4) !== selectedYear)) {
+                applyYearFilter('all');
+            }
+            document.querySelectorAll('.place-card.active').forEach(c => c.classList.remove('active'));
+            cards[index].classList.add('active');
+            if (!map) {
+                cards[index].scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return;
+            }
+            // gentle, gradual approach — same feel as the original site
+            map.flyTo({
+                center: place.coordinates, zoom: 9, speed: 0.8, curve: 1,
+                // land with the marker above centre so its popup has room below
+                offset: [0, -Math.min(140, map.getContainer().clientHeight * 0.22)]
             });
+            window.openPopup(index);
+            map.getContainer().scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+        // Record the place in the address bar so it can be shared and so the
+        // browser's back button steps between places; the hashchange listener
+        // below does the actual selecting.
+        function goToPlace(index) {
+            if (location.hash === '#' + places[index].slug) selectPlace(index);
+            else location.hash = places[index].slug;
+        }
+        window.addEventListener('hashchange', () => {
+            const i = indexFromHash();
+            if (i >= 0) selectPlace(i);
         });
+        places.forEach((place, index) => {
+            cards[index].addEventListener('click', () => goToPlace(index));
+        });
+        // without a map there's no load event to wait for
+        if (!map && indexFromHash() >= 0) selectPlace(indexFromHash());
 
         // --- Year filter ---
         function placeFeatures(year) {
