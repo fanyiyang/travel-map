@@ -610,8 +610,10 @@
                     : 'mapbox://styles/mapbox/streets-v11',
                 center: [0, 25],
                 zoom: 1.5,
-                // one-finger drag scrolls the page on touch devices; two fingers move the map
-                cooperativeGestures: true
+                // Mouse/trackpad: the scroll wheel zooms the map directly.
+                // Phones: one finger scrolls the page and two fingers move the
+                // map, since there the map fills most of the screen.
+                cooperativeGestures: window.matchMedia('(pointer: coarse)').matches
             });
             window._map = map;
             map.addControl(new mapboxgl.NavigationControl(), 'top-right');
@@ -934,19 +936,33 @@
             function animatePlane(path) {
                 if (path.length < 2) return;
                 map.addImage('plane', planeIcon(), { pixelRatio: 2 });
-                // Cumulative distance along the route so the plane flies at a
-                // constant ground speed — equal points per segment would make it
-                // crawl over short hops and streak across ocean crossings.
+                // Cumulative distance along the route *as drawn on the map*, so the
+                // plane moves at an even on-screen speed. Pacing by distance over
+                // the ground made it race across the polar legs, which the flat
+                // map stretches enormously.
+                const merc = c => mapboxgl.MercatorCoordinate.fromLngLat(c);
                 const cum = [0];
                 for (let i = 1; i < path.length; i++) {
-                    cum.push(cum[i - 1] + turf.distance(turf.point(path[i - 1]), turf.point(path[i])));
+                    const a = merc(path[i - 1]), b = merc(path[i]);
+                    let dx = Math.abs(a.x - b.x);
+                    if (dx > 0.5) dx = 1 - dx; // the ±180° split is the same place
+                    cum.push(cum[i - 1] + Math.hypot(dx, a.y - b.y));
                 }
                 const total = cum[cum.length - 1];
-                const pointAt = i => ({
-                    type: 'Feature',
-                    properties: { bearing: turf.bearing(turf.point(path[i]), turf.point(path[Math.min(i + 1, path.length - 1)])) },
-                    geometry: { type: 'Point', coordinates: path[i] }
-                });
+                // Position `f` of the way from path[i] to path[i + 1], so the plane
+                // glides between points instead of hopping.
+                const pointAt = (i, f = 0) => {
+                    const a = path[i], b = path[Math.min(i + 1, path.length - 1)];
+                    // never interpolate across the antimeridian split (±180°):
+                    // the two ends are the same place, and a lerp would sweep the globe
+                    const pos = Math.abs(b[0] - a[0]) > 180 ? a
+                        : [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+                    return {
+                        type: 'Feature',
+                        properties: { bearing: turf.bearing(turf.point(a), turf.point(b)) },
+                        geometry: { type: 'Point', coordinates: pos }
+                    };
+                };
                 map.addSource('plane', { type: 'geojson', data: pointAt(0) });
                 map.addLayer({
                     id: 'plane',
@@ -960,7 +976,7 @@
                         'icon-ignore-placement': true
                     }
                 });
-                const DURATION = 30000;
+                const DURATION = 50000; // whole route, ms
                 let start = null;
                 let idx = 0;
                 const frame = ts => {
@@ -969,7 +985,8 @@
                     const t = Math.min(1, (ts - start) / DURATION);
                     const target = t * total;
                     while (idx < path.length - 2 && cum[idx + 1] < target) idx++;
-                    map.getSource('plane').setData(pointAt(idx));
+                    const span = cum[idx + 1] - cum[idx];
+                    map.getSource('plane').setData(pointAt(idx, span > 0 ? Math.min(1, (target - cum[idx]) / span) : 0));
                     if (t < 1) {
                         requestAnimationFrame(frame);
                     } else {
