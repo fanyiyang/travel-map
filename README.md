@@ -12,13 +12,13 @@ An interactive world map of the places I've been — photo markers, a flight-pat
 - 📍 **Photo markers** — every destination is a circular photo icon, rendered inside the WebGL layer so markers stay perfectly in sync while panning (no DOM-marker lag)
 - 🔗 **Share links** — every place has its own address (`…/travel-map/#rome-italy`) that opens the map straight to it; popups have a Copy link button, and the browser's back button steps between places
 - 🔵 **Smart clustering** — nearby stops (Tokyo & Kamakura, London & Edinburgh…) merge into a numbered bubble at low zoom; click to zoom in and separate
-- ✈️ **Flight animation** — a little plane flies the whole route once when the page opens
+- ✈️ **Flight animation** — a little plane glides along the whole route at an even pace (about 50 s) when the page opens
 - 🧭 **Great-circle route** — dashed arcs connect the stops in trip order, correctly crossing the antimeridian
 - 📅 **Timeline & year filter** — trips order themselves chronologically; chips above the grid filter both cards and markers by year
 - 🖼️ **Albums & lightbox** — places can have multiple photos, shown as a carousel in the popup; click any popup photo for a fullscreen viewer with keyboard/swipe navigation
 - 📖 **Journal** — destinations can carry a long-form story, readable from the popup's "Read the journal" link or collected on [journal.html](https://fanyiyang.github.io/travel-map/journal.html), a magazine-style reader with cover images, a table of contents, and drop caps
 - 🌙 **Dark mode** — follows the system theme, including a dark map style
-- 📱 **Mobile-friendly** — cooperative gestures (one finger scrolls the page, two fingers move the map) and small-screen layout tweaks
+- 🖱️ **Direct zoom** — on desktop the scroll wheel zooms the map straight away; on phones one finger scrolls the page and two fingers move the map, plus small-screen layout tweaks
 - 🌍 **Visited countries** — every country you've been to gets a warm coral wash, drawn under the map's labels and fading out as you zoom in
 - 📊 **Stats bar** — destinations · countries · since first trip, computed from the data
 - ⌨️ **Keyboard & screen-reader friendly** — cards are real buttons with focus rings, and animations respect `prefers-reduced-motion`
