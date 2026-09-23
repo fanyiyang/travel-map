@@ -261,9 +261,9 @@
                     for (const f of (newFiles[i] || [])) {
                         if (taken.has(f.cleanName)) throw new Error(`Filename "${f.cleanName}" is already used — rename the file first.`);
                         setStatus(`Uploading ${f.cleanName}…`);
-                        await ghPutFile(repo, token, {
+                        await ghPutPhoto(repo, token, {
+                            file: f,
                             path: f.cleanName,
-                            content: await fileToBase64(await compressImage(f)),
                             message: `Add photo for ${placesData[i].name}`,
                             branch
                         });

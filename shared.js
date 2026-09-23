@@ -78,6 +78,42 @@ async function compressImage(file) {
     }
 }
 
+// Smaller copies the map page uses instead of the full photo:
+//   thumbs/<name>  shorter side 192px — map markers draw a 96px centre crop
+//   cards/<name>   640px wide        — photo cards and popups
+// Returns null if the browser can't decode the file (e.g. HEIC); the page
+// then falls back to the full photo.
+async function makeResized(file, { shortSide, width }) {
+    try {
+        const bmp = await createImageBitmap(file);
+        const scale = Math.min(1, shortSide
+            ? shortSide / Math.min(bmp.width, bmp.height)
+            : width / bmp.width);
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.round(bmp.width * scale);
+        canvas.height = Math.round(bmp.height * scale);
+        canvas.getContext('2d').drawImage(bmp, 0, 0, canvas.width, canvas.height);
+        return await new Promise(r => canvas.toBlob(r, 'image/jpeg', 0.75));
+    } catch (e) {
+        return null;
+    }
+}
+
+// Upload a photo plus the smaller copies the map page uses.
+async function ghPutPhoto(repo, token, { file, path, message, branch }) {
+    await ghPutFile(repo, token, {
+        path, content: await fileToBase64(await compressImage(file)), message, branch
+    });
+    for (const [dir, size] of [['thumbs', { shortSide: 192 }], ['cards', { width: 640 }]]) {
+        const blob = await makeResized(file, size);
+        if (blob) {
+            await ghPutFile(repo, token, {
+                path: `${dir}/${path}`, content: await fileToBase64(blob), message: `${message} (${dir})`, branch
+            });
+        }
+    }
+}
+
 // --- GitHub -----------------------------------------------------------
 
 async function gh(path, token, opts = {}) {
@@ -98,7 +134,7 @@ async function gh(path, token, opts = {}) {
 // Commit one file, creating or updating it. `sha` is required by the API when
 // replacing an existing file.
 async function ghPutFile(repo, token, { path, content, message, branch, sha }) {
-    return gh(`/repos/${repo}/contents/${encodeURIComponent(path)}`, token, {
+    return gh(`/repos/${repo}/contents/${path.split('/').map(encodeURIComponent).join('/')}`, token, {
         method: 'PUT',
         body: JSON.stringify({ message, content, branch, ...(sha ? { sha } : {}) })
     });

@@ -422,9 +422,9 @@
 
                 for (let i = 0; i < photoFiles.length; i++) {
                     setStatus(`Compressing and uploading photo ${i + 1} of ${photoFiles.length}…`);
-                    await ghPutFile(repo, token, {
+                    await ghPutPhoto(repo, token, {
+                        file: photoFiles[i],
                         path: entry.images[i],
-                        content: await fileToBase64(await compressImage(photoFiles[i])),
                         message: `Add photo for ${entry.name}`,
                         branch
                     });
