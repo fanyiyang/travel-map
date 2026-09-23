@@ -13,7 +13,7 @@ An interactive world map of the places I've been — photo markers, a flight-pat
 - 🔗 **Share links** — every place has its own address (`…/travel-map/#rome-italy`) that opens the map straight to it; popups have a Copy link button, and the browser's back button steps between places
 - 🔵 **Smart clustering** — nearby stops (Tokyo & Kamakura, London & Edinburgh…) merge into a numbered bubble at low zoom; click to zoom in and separate
 - ✈️ **Flight animation** — a little plane glides along the whole route at an even pace (about 50 s) when the page opens
-- 🧭 **Great-circle route** — dashed arcs connect the stops in trip order, correctly crossing the antimeridian
+- 🧭 **Great-circle route** — dashed arcs connect the stops in trip order, correctly crossing the antimeridian (computed in a few lines instead of loading Turf.js)
 - 📅 **Timeline & year filter** — trips order themselves chronologically; chips above the grid filter both cards and markers by year
 - 🖼️ **Albums & lightbox** — places can have multiple photos, shown as a carousel in the popup; click any popup photo for a fullscreen viewer with keyboard/swipe navigation
 - 📖 **Journal** — destinations can carry a long-form story, readable from the popup's "Read the journal" link or collected on [journal.html](https://fanyiyang.github.io/travel-map/journal.html), a magazine-style reader with cover images, a table of contents, and drop caps
@@ -22,7 +22,8 @@ An interactive world map of the places I've been — photo markers, a flight-pat
 - 🌍 **Visited countries** — every country you've been to gets a warm coral wash, drawn under the map's labels and fading out as you zoom in
 - 📊 **Stats bar** — destinations · countries · since first trip, computed from the data
 - ⌨️ **Keyboard & screen-reader friendly** — cards are real buttons with focus rings, and animations respect `prefers-reduced-motion`
-- ⚡ **Fast** — coordinates are stored in `places.js` (no geocoding calls at load), photos are pre-compressed, card images lazy-load, and the photo grid renders even if the map CDN is down
+- ⚡ **Fast** — the map style is fetched in parallel with the Mapbox library, markers and cards load small copies of the photos (~1 MB instead of 4.5 MB), there are no geocoding calls at load, and the photo grid renders even if the map CDN is down
+- 🎞️ **Smooth on high-refresh screens** — the plane is drawn on its own overlay every display frame (60/120/144 Hz) without repainting the map underneath
 
 ### Updating from the browser — no code editing
 - ➕ **[add.html](https://fanyiyang.github.io/travel-map/add.html)** — add a destination in four steps. Location and trip date auto-fill from the photo's EXIF GPS/capture date (with place-name geocoding as fallback), the country auto-fills from the pin, and photos are compressed client-side before upload.
@@ -33,13 +34,14 @@ An interactive world map of the places I've been — photo markers, a flight-pat
 
 | File | Purpose |
 | --- | --- |
-| `index.html` | The map page (Mapbox GL JS + Turf.js, no build step) |
+| `index.html` | The map page (Mapbox GL JS, no build step) |
 | `places.js` | All destination data: name, note, photos, `[lon, lat]`, date, country + ISO code, journal |
 | `add.html` | Browser-based "new destination" publisher |
 | `manage.html` | Browser-based editor for existing destinations |
 | `journal.html` | Long-form journal entries |
 | `shared.js` | Helpers shared by the two publishing pages (file format, GitHub API, image compression) |
-| `*.jpg / *.jpeg` | The photos (≤1600 px, recompressed) |
+| `*.jpg / *.jpeg` | The photos (≤1600 px, recompressed), shown full size in the lightbox |
+| `cards/`, `thumbs/` | Smaller copies of each photo for the cards/popups (640 px) and map markers (192 px); created automatically by add.html and manage.html |
 
 A destination entry looks like:
 

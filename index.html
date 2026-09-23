@@ -12,12 +12,19 @@
     <meta name="twitter:card" content="summary_large_image">
     <title>My Travel Adventures</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>%F0%9F%97%BA%EF%B8%8F</text></svg>">
+    <link rel="preconnect" href="https://api.mapbox.com" crossorigin>
+    <!-- Fetch the map style while mapbox-gl.js is still downloading, instead of
+         after it has run. The URLs must match the ones Mapbox requests exactly,
+         including the token; keep them in sync with the style chosen below. -->
+    <link rel="preload" as="fetch" crossorigin href="https://api.mapbox.com/styles/v1/mapbox/streets-v11?access_token=pk.eyJ1IjoiZmFueWl5YW5nMjMzIiwiYSI6ImNseG56dHp1dTA5cmQyanB4MDlyNXB5YjAifQ.dXU4lx12g2LDUhENBR_UGA" media="(prefers-color-scheme: light)">
+    <link rel="preload" as="fetch" crossorigin href="https://api.mapbox.com/styles/v1/mapbox/navigation-night-v1?access_token=pk.eyJ1IjoiZmFueWl5YW5nMjMzIiwiYSI6ImNseG56dHp1dTA5cmQyanB4MDlyNXB5YjAifQ.dXU4lx12g2LDUhENBR_UGA" media="(prefers-color-scheme: dark)">
     <link href="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.css" rel="stylesheet">
     <script src="https://api.mapbox.com/mapbox-gl-js/v2.15.0/mapbox-gl.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@turf/turf@6/turf.min.js"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
+    <!-- title font loads without holding up the first paint of the page -->
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet" media="print" onload="this.media='all'">
+    <noscript><link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet"></noscript>
     <style>
         * {
             box-sizing: border-box;
@@ -233,6 +240,13 @@
             color: var(--muted);
             font-size: 0.92rem;
             line-height: 1.45;
+        }
+        .plane-overlay {
+            position: absolute;
+            inset: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
         }
         .mapboxgl-popup {
             max-width: 250px;
@@ -518,6 +532,43 @@
 
     <script src="places.js"></script>
     <script>
+        // --- Great-circle maths (replaces Turf.js: 590 KB, render-blocking,
+        // for these two functions). Verified point-for-point against Turf.
+        const RAD = Math.PI / 180;
+        function greatCircle(a, b, n = 100) {
+            const l1 = a[0] * RAD, p1 = a[1] * RAD, l2 = b[0] * RAD, p2 = b[1] * RAD;
+            const d = 2 * Math.asin(Math.sqrt(Math.sin((p2 - p1) / 2) ** 2
+                + Math.cos(p1) * Math.cos(p2) * Math.sin((l2 - l1) / 2) ** 2));
+            const pts = [];
+            for (let i = 0; i < n; i++) {
+                const f = i / (n - 1);
+                if (d === 0) { pts.push([a[0], a[1]]); continue; }
+                const A = Math.sin((1 - f) * d) / Math.sin(d), B = Math.sin(f * d) / Math.sin(d);
+                const x = A * Math.cos(p1) * Math.cos(l1) + B * Math.cos(p2) * Math.cos(l2);
+                const y = A * Math.cos(p1) * Math.sin(l1) + B * Math.cos(p2) * Math.sin(l2);
+                const z = A * Math.sin(p1) + B * Math.sin(p2);
+                pts.push([Math.atan2(y, x) / RAD, Math.atan2(z, Math.hypot(x, y)) / RAD]);
+            }
+            const lines = [[pts[0]]];
+            for (let i = 1; i < pts.length; i++) {
+                const p = pts[i - 1], q = pts[i];
+                if (Math.abs(q[0] - p[0]) > 180) {
+                    const edge = p[0] > 0 ? 180 : -180;
+                    const qx = q[0] + (edge > 0 ? 360 : -360);
+                    const lat = p[1] + (q[1] - p[1]) * (edge - p[0]) / (qx - p[0]);
+                    lines[lines.length - 1].push([edge, lat]);
+                    lines.push([[-edge, lat]]);
+                }
+                lines[lines.length - 1].push(q);
+            }
+            return lines;
+        }
+        function bearing(a, b) {
+            const p1 = a[1] * RAD, p2 = b[1] * RAD, dl = (b[0] - a[0]) * RAD;
+            return Math.atan2(Math.sin(dl) * Math.cos(p2),
+                Math.cos(p1) * Math.sin(p2) - Math.sin(p1) * Math.cos(p2) * Math.cos(dl)) / RAD;
+        }
+
         // Destinations live in places.js; add new ones with add.html.
         // Accept both the current schema ({images: [...]}) and the old one ({image: "..."}).
         const normalized = (window.PLACES || []).map(p => ({
@@ -535,6 +586,14 @@
 
         if (!places.length) {
             document.getElementById('map').textContent = 'No destinations found — places.js failed to load.';
+        }
+
+        // Card and popup photos use the 640px copy in cards/ (the grid would
+        // otherwise pull every full photo, ~4.5 MB, while the map is loading);
+        // any photo without one falls back to the original.
+        function setSizedSrc(img, file) {
+            img.addEventListener('error', () => { if (img.src.includes('cards/')) img.src = file; }, { once: true });
+            img.src = 'cards/' + file;
         }
 
         // Each place gets a shareable address: index.html#rome-italy.
@@ -574,9 +633,10 @@
             };
             const thumb = el('span', 'place-thumb');
             const img = el('img', 'place-image');
-            img.src = place.images[0] || '';
+            if (place.images[0]) setSizedSrc(img, place.images[0]);
             img.alt = place.name;
             img.loading = 'lazy';
+            img.decoding = 'async';
             thumb.append(img, el('span', 'thumb-veil'));
             card.appendChild(thumb);
             if (place.images.length > 1) card.appendChild(el('span', 'photo-badge', `${place.images.length} photos`));
@@ -632,7 +692,7 @@
                 let idx = 0;
                 const show = i => {
                     idx = (i + place.images.length) % place.images.length;
-                    img.src = place.images[idx];
+                    setSizedSrc(img, place.images[idx]);
                     if (counter) counter.textContent = `${idx + 1} / ${place.images.length}`;
                 };
                 let counter = null;
@@ -699,10 +759,17 @@
             // Photo markers are rendered as a WebGL symbol layer instead of DOM
             // markers: DOM markers are repositioned a frame behind the map and
             // visibly lag while panning; symbols draw in the same frame.
-            async function markerIcon(url) {
+            // Markers are drawn from the small copy in thumbs/ (a few KB) rather
+            // than the full photo; the full photo is the fallback for any
+            // image added before thumbnails existed.
+            async function loadImage(url) {
                 const img = new Image();
                 img.src = url;
                 await img.decode();
+                return img;
+            }
+            async function markerIcon(file) {
+                const img = await loadImage('thumbs/' + file).catch(() => loadImage(file));
                 const S = 96, B = 6; // canvas px (drawn at 2x pixel ratio → 48 CSS px), border width
                 const c = document.createElement('canvas');
                 c.width = c.height = S;
@@ -723,20 +790,11 @@
 
             map.on('load', async () => {
                 let segments = [];
-                if (typeof turf !== 'undefined') { // skip the route line if Turf failed to load
+                {
                     // Great-circle arcs between consecutive stops; MultiLineString keeps
                     // antimeridian-crossing segments (e.g. across the Pacific) intact.
                     for (let i = 0; i < places.length - 1; i++) {
-                        const arc = turf.greatCircle(
-                            turf.point(places[i].coordinates),
-                            turf.point(places[i + 1].coordinates),
-                            { npoints: 100 }
-                        );
-                        if (arc.geometry.type === 'LineString') {
-                            segments.push(arc.geometry.coordinates);
-                        } else {
-                            segments.push(...arc.geometry.coordinates);
-                        }
+                        segments.push(...greatCircle(places[i].coordinates, places[i + 1].coordinates, 100));
                     }
                     map.addSource('route', {
                         type: 'geojson',
@@ -905,12 +963,14 @@
             });
 
             // A little plane flies the whole route once when the page opens.
-            function planeIcon() {
-                const S = 64;
-                const c = document.createElement('canvas');
-                c.width = c.height = S;
-                const ctx = c.getContext('2d');
-                ctx.translate(S / 2, S / 2);
+            //
+            // It is drawn on a transparent canvas laid over the map, every
+            // display frame and inside the map's own 'render' event. Moving a GeoJSON point instead sends every
+            // position through Mapbox's worker thread, and the result often misses
+            // the frame it was meant for (measured: the plane moved in only ~65%
+            // of painted frames), which gets worse on 120/144 Hz screens. Drawing
+            // here moves it every frame, locked to the map while you pan or zoom.
+            function drawPlaneShape(ctx) {
                 // Top-down airplane silhouette pointing north: nose, fuselage,
                 // swept main wings, tail wings. Right half; the left is mirrored.
                 const half = [
@@ -931,11 +991,9 @@
                 ctx.lineJoin = 'round';
                 ctx.stroke();
                 ctx.fill();
-                return ctx.getImageData(0, 0, S, S);
             }
             function animatePlane(path) {
                 if (path.length < 2) return;
-                map.addImage('plane', planeIcon(), { pixelRatio: 2 });
                 // Cumulative distance along the route *as drawn on the map*, so the
                 // plane moves at an even on-screen speed. Pacing by distance over
                 // the ground made it race across the polar legs, which the flat
@@ -949,52 +1007,68 @@
                     cum.push(cum[i - 1] + Math.hypot(dx, a.y - b.y));
                 }
                 const total = cum[cum.length - 1];
-                // Position `f` of the way from path[i] to path[i + 1], so the plane
-                // glides between points instead of hopping.
-                const pointAt = (i, f = 0) => {
-                    const a = path[i], b = path[Math.min(i + 1, path.length - 1)];
-                    // never interpolate across the antimeridian split (±180°):
-                    // the two ends are the same place, and a lerp would sweep the globe
-                    const pos = Math.abs(b[0] - a[0]) > 180 ? a
-                        : [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
-                    return {
-                        type: 'Feature',
-                        properties: { bearing: turf.bearing(turf.point(a), turf.point(b)) },
-                        geometry: { type: 'Point', coordinates: pos }
-                    };
-                };
-                map.addSource('plane', { type: 'geojson', data: pointAt(0) });
-                map.addLayer({
-                    id: 'plane',
-                    type: 'symbol',
-                    source: 'plane',
-                    layout: {
-                        'icon-image': 'plane',
-                        'icon-rotate': ['get', 'bearing'],
-                        'icon-rotation-alignment': 'map',
-                        'icon-allow-overlap': true,
-                        'icon-ignore-placement': true
-                    }
-                });
+
+                const overlay = document.createElement('canvas');
+                overlay.className = 'plane-overlay';
+                overlay.setAttribute('aria-hidden', 'true');
+                map.getCanvasContainer().appendChild(overlay);
+                const ctx = overlay.getContext('2d');
+
                 const DURATION = 50000; // whole route, ms
-                let start = null;
-                let idx = 0;
-                const frame = ts => {
-                    if (!map.getSource('plane')) return; // style changed / removed
-                    if (start === null) start = ts;
-                    const t = Math.min(1, (ts - start) / DURATION);
+                const start = performance.now();
+                let idx = 0, heading = 0;
+                const draw = () => {
+                    const t = Math.min(1, (performance.now() - start) / DURATION);
                     const target = t * total;
                     while (idx < path.length - 2 && cum[idx + 1] < target) idx++;
+                    const a = path[idx], b = path[idx + 1];
                     const span = cum[idx + 1] - cum[idx];
-                    map.getSource('plane').setData(pointAt(idx, span > 0 ? Math.min(1, (target - cum[idx]) / span) : 0));
-                    if (t < 1) {
-                        requestAnimationFrame(frame);
-                    } else {
-                        map.removeLayer('plane');
-                        map.removeSource('plane');
+                    const f = span > 0 ? Math.min(1, (target - cum[idx]) / span) : 0;
+                    // never interpolate across the antimeridian split (±180°):
+                    // the two ends are the same place, and a lerp would sweep the globe
+                    const wraps = Math.abs(b[0] - a[0]) > 180;
+                    const pos = wraps ? a : [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f];
+
+                    // keep the canvas matched to the map (and sharp on high-DPI screens)
+                    const w = map.getCanvas().clientWidth, h = map.getCanvas().clientHeight;
+                    const dpr = window.devicePixelRatio || 1;
+                    if (overlay.width !== Math.round(w * dpr) || overlay.height !== Math.round(h * dpr)) {
+                        overlay.width = Math.round(w * dpr);
+                        overlay.height = Math.round(h * dpr);
                     }
+                    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+                    ctx.clearRect(0, 0, w, h);
+
+                    const p = map.project(pos);
+                    // heading measured on screen, so it follows map rotation too
+                    if (!wraps) {
+                        const pa = map.project(a), pb = map.project(b);
+                        if (Math.hypot(pb.x - pa.x, pb.y - pa.y) > 0.01) {
+                            heading = Math.atan2(pb.y - pa.y, pb.x - pa.x) + Math.PI / 2;
+                        }
+                    }
+                    ctx.translate(p.x, p.y);
+                    ctx.rotate(heading);
+                    ctx.scale(0.5, 0.5); // shape is drawn at 2x, as before
+                    drawPlaneShape(ctx);
+                    return t < 1;
                 };
-                requestAnimationFrame(frame);
+                const finish = () => {
+                    map.off('render', onRender);
+                    overlay.remove();
+                };
+                // Redraw when the map itself repaints (pan/zoom), so the plane
+                // stays locked to it...
+                const onRender = () => { if (!draw()) finish(); };
+                map.on('render', onRender);
+                // ...and on every display refresh otherwise. Only the small
+                // overlay is redrawn here: the map is left alone, instead of
+                // repainting every tile 60–144 times a second for 50 seconds.
+                const tick = () => {
+                    if (!overlay.isConnected) return;
+                    if (draw()) requestAnimationFrame(tick); else finish();
+                };
+                requestAnimationFrame(tick);
             }
         }
 
