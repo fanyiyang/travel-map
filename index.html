@@ -12,6 +12,10 @@
     <meta name="twitter:card" content="summary_large_image">
     <title>My Travel Adventures</title>
     <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>%F0%9F%97%BA%EF%B8%8F</text></svg>">
+    <!-- the map box shows a pre-rendered picture of the opening view until the
+         live map has drawn, so it is never blank while Mapbox loads -->
+    <link rel="preload" as="image" href="map-poster-light.jpg" media="(prefers-color-scheme: light)" fetchpriority="high">
+    <link rel="preload" as="image" href="map-poster-dark.jpg" media="(prefers-color-scheme: dark)" fetchpriority="high">
     <link rel="preconnect" href="https://api.mapbox.com" crossorigin>
     <!-- Fetch the map style while mapbox-gl.js is still downloading, instead of
          after it has run. The URLs must match the ones Mapbox requests exactly,
@@ -74,6 +78,19 @@
         }
         .subtitle::before { content: '✈'; margin-right: 0.9em; letter-spacing: 0; }
         .subtitle::after { content: '·'; margin-left: 0.9em; letter-spacing: 0; }
+        /* Poster: the opening view (centre 0°, 25°N, zoom 1.5), pre-rendered.
+           At zoom 1.5 the world is 1448px wide, and the image is cropped so its
+           centre is the map's centre, so "center" lines it up with the live
+           map at any box size. Regenerate the images if the opening camera or
+           the map style changes. */
+        #map {
+            background: #75cff0 url(map-poster-light.jpg) center / 1448px 1240px no-repeat;
+        }
+        #map .mapboxgl-canvas {
+            opacity: 0;
+            transition: opacity .45s ease;
+        }
+        #map.map-ready .mapboxgl-canvas { opacity: 1; }
         #map {
             height: 65vh;
             min-height: 400px;
@@ -489,7 +506,10 @@
                     radial-gradient(120% 160% at 15% -20%, rgba(80,150,220,.2) 0%, rgba(80,150,220,0) 55%),
                     linear-gradient(140deg, #081b30 0%, #123c66 55%, #1d5c92 100%);
             }
-            #map { border-color: rgba(24,33,43,0.9); }
+            #map {
+                border-color: rgba(24,33,43,0.9);
+                background: #3b4f63 url(map-poster-dark.jpg) center / 1448px 1240px no-repeat;
+            }
             .journal-card h2 { color: #7fb6e0; }
             .mapboxgl-popup-content { background: var(--card); color: var(--ink); }
             .mapboxgl-popup-tip {
@@ -676,6 +696,11 @@
                 cooperativeGestures: window.matchMedia('(pointer: coarse)').matches
             });
             window._map = map;
+            // swap the poster for the live map once it has drawn the opening view
+            // (tiles and labels); the fallback covers a slow or failed tile load
+            const reveal = () => document.getElementById('map').classList.add('map-ready');
+            map.once('load', reveal);
+            setTimeout(reveal, 8000);
             map.addControl(new mapboxgl.NavigationControl(), 'top-right');
             map.addControl(new mapboxgl.FullscreenControl(), 'top-right');
 

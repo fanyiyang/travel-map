@@ -23,6 +23,7 @@ An interactive world map of the places I've been — photo markers, a flight-pat
 - 📊 **Stats bar** — destinations · countries · since first trip, computed from the data
 - ⌨️ **Keyboard & screen-reader friendly** — cards are real buttons with focus rings, and animations respect `prefers-reduced-motion`
 - ⚡ **Fast** — the map style is fetched in parallel with the Mapbox library, markers and cards load small copies of the photos (~1 MB instead of 4.5 MB), there are no geocoding calls at load, and the photo grid renders even if the map CDN is down
+- 🖼️ **No blank map on open** — the map box shows a pre-rendered picture of the opening view (`map-poster-light.jpg` / `map-poster-dark.jpg`, ~20 KB) from the first paint, and the live map fades in over it once it has drawn
 - 🎞️ **Smooth on high-refresh screens** — the plane is drawn on its own overlay every display frame (60/120/144 Hz) without repainting the map underneath
 
 ### Updating from the browser — no code editing
@@ -41,6 +42,7 @@ An interactive world map of the places I've been — photo markers, a flight-pat
 | `journal.html` | Long-form journal entries |
 | `shared.js` | Helpers shared by the two publishing pages (file format, GitHub API, image compression) |
 | `*.jpg / *.jpeg` | The photos (≤1600 px, recompressed), shown full size in the lightbox |
+| `map-poster-*.jpg` | Pre-rendered opening view shown while the live map loads (regenerate if the opening camera or map style changes) |
 | `cards/`, `thumbs/` | Smaller copies of each photo for the cards/popups (640 px) and map markers (192 px); created automatically by add.html and manage.html |
 
 A destination entry looks like:
