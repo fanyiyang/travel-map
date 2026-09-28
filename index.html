@@ -7,7 +7,9 @@
     <meta property="og:type" content="website">
     <meta property="og:title" content="My Travel Adventures">
     <meta property="og:description" content="An interactive map of my travel adventures — photo markers, a timeline, and the route through every stop.">
-    <meta property="og:image" content="https://fanyiyang.github.io/travel-map/screenshot.png">
+    <meta property="og:image" content="https://fanyiyang.github.io/travel-map/screenshot.png?v=2">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
     <meta property="og:url" content="https://fanyiyang.github.io/travel-map/">
     <meta name="twitter:card" content="summary_large_image">
     <title>My Travel Adventures</title>
@@ -70,6 +72,7 @@
             letter-spacing: 0.5px;
         }
         .subtitle {
+            text-wrap: balance;   /* split evenly over two lines on phones */
             margin: 0.8rem 0 0;
             opacity: 0.88;
             font-size: 0.78rem;
@@ -77,7 +80,7 @@
             letter-spacing: 0.22em;
         }
         .subtitle::before { content: '✈'; margin-right: 0.9em; letter-spacing: 0; }
-        .subtitle::after { content: '·'; margin-left: 0.9em; letter-spacing: 0; }
+        .subtitle .stat { white-space: nowrap; }
         /* Poster: the opening view (centre 0°, 25°N, zoom 1.5), pre-rendered.
            At zoom 1.5 the world is 1448px wide, and the image is cropped so its
            centre is the map's centre, so "center" lines it up with the live
@@ -754,11 +757,20 @@
         // Stats bar: destinations · countries · since first dated trip
         const countryCount = new Set(places.map(p => p.country).filter(Boolean)).size;
         const firstYear = places.filter(p => p.date).map(p => p.date.slice(0, 4)).sort()[0];
-        document.getElementById('subtitle').textContent = [
+        // each stat is kept whole, so on a phone the line breaks between them
+        const subtitle = document.getElementById('subtitle');
+        subtitle.textContent = '';
+        [
             `${places.length} destinations`,
             countryCount ? `${countryCount} countries` : '',
             firstYear ? `since ${firstYear}` : ''
-        ].filter(Boolean).join(' · ');
+        ].filter(Boolean).forEach((stat, i) => {
+            if (i) subtitle.append(' · ');
+            const span = document.createElement('span');
+            span.className = 'stat';
+            span.textContent = stat;
+            subtitle.append(span);
+        });
 
         // --- Photo cards (render before any map work so they never depend on Mapbox) ---
         const placeGrid = document.getElementById('placeGrid');

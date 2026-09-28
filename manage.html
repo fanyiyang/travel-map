@@ -11,11 +11,53 @@
     <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@700&display=swap" rel="stylesheet">
     <style>
         * { box-sizing: border-box; }
+        /* same colour tokens as index.html / journal.html, so these pages
+           follow the system theme too */
+        :root {
+            color-scheme: light dark;
+            --accent: #2f86d1;
+            --accent-deep: #1e5799;
+            --bg: #eef2f6;
+            --card: #ffffff;
+            --ink: #1f2d3a;
+            --muted: #5f7080;
+            --faint: #7a8a99;
+            --line: #dbe4ec;
+            --field: #ffffff;
+            --field-line: #ccd5dc;
+            --soft: #eef3f7;
+            --ok: #1e7e34;
+            --err: #c0392b;
+            --shadow-sm: 0 1px 2px rgba(15,40,70,.08), 0 4px 14px rgba(15,40,70,.06);
+        }
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --accent: #4a9be0;
+                --accent-deep: #7fb6e0;
+                --bg: #0e141b;
+                --card: #18212b;
+                --ink: #e4ecf3;
+                --muted: #a9b9c7;
+                --faint: #8a9cad;
+                --line: #263341;
+                --field: #111922;
+                --field-line: #2f3e4e;
+                --soft: #222d39;
+                --ok: #5cc27a;
+                --err: #ff7a6b;
+                --shadow-sm: 0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.3);
+            }
+            header {
+                background:
+                    radial-gradient(120% 160% at 15% -20%, rgba(80,150,220,.2) 0%, rgba(80,150,220,0) 55%),
+                    linear-gradient(140deg, #081b30 0%, #123c66 55%, #1d5c92 100%) !important;
+            }
+        }
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
             margin: 0;
-            background-color: #f4f6f8;
-            color: #2c3e50;
+            background-color: var(--bg);
+            color: var(--ink);
         }
         header {
             background:
@@ -29,11 +71,12 @@
         header a { color: #cfe8ff; font-size: 0.9rem; }
         .container { max-width: 860px; margin: 0 auto; padding: 1.5rem 1rem 3rem; }
         .card {
-            background: white;
-            border-radius: 12px;
+            background: var(--card);
+            border: 1px solid var(--line);
+            border-radius: 14px;
             padding: 1.25rem 1.5rem;
             margin-bottom: 1.25rem;
-            box-shadow: 0 2px 6px rgba(0,0,0,0.08);
+            box-shadow: var(--shadow-sm);
         }
         .card.dirty { border-left: 4px solid #f39c12; }
         .place-head { display: flex; gap: 1rem; align-items: flex-start; }
@@ -42,28 +85,30 @@
             height: 84px;
             object-fit: cover;
             border-radius: 50%;
-            border: 3px solid #3498db;
+            border: 3px solid var(--accent);
             flex-shrink: 0;
         }
         .fields { flex: 1; display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem 1rem; }
         .fields .wide { grid-column: 1 / -1; }
-        label { display: block; font-size: 0.75rem; font-weight: 600; color: #7a8a99; margin-bottom: 0.15rem; }
+        label { display: block; font-size: 0.75rem; font-weight: 600; color: var(--faint); margin-bottom: 0.15rem; }
         input[type="text"], input[type="date"], input[type="password"], textarea {
             width: 100%;
             padding: 0.45rem 0.6rem;
-            border: 1px solid #ccd5dc;
+            background: var(--field);
+            color: var(--ink);
+            border: 1px solid var(--field-line);
             border-radius: 8px;
             font-size: 0.92rem;
             font-family: inherit;
             resize: vertical;
         }
-        input:focus { outline: 2px solid #3498db; border-color: transparent; }
+        input:focus, textarea:focus { outline: 2px solid var(--accent); border-color: transparent; }
         .photos { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 0.9rem; align-items: center; }
         .photo-chip {
             display: flex;
             align-items: center;
             gap: 0.4rem;
-            background: #eef3f7;
+            background: var(--soft);
             border-radius: 999px;
             padding: 0.2rem 0.6rem 0.2rem 0.25rem;
             font-size: 0.8rem;
@@ -72,19 +117,20 @@
         .photo-chip button {
             border: none;
             background: none;
-            color: #c0392b;
+            color: var(--err);
             font-weight: 700;
             cursor: pointer;
             font-size: 0.9rem;
             padding: 0 0.2rem;
         }
-        .photo-chip.new { background: #e8f6ee; }
+        .photo-chip.new { background: color-mix(in srgb, var(--ok) 18%, var(--card)); }
         .add-photos { font-size: 0.8rem; }
-        .hint { font-size: 0.8rem; color: #7a8a99; margin-top: 0.25rem; }
+        .hint { font-size: 0.8rem; color: var(--faint); margin-top: 0.25rem; }
+        .hint a { color: var(--accent); }
         .row { display: flex; gap: 1rem; }
         .row > div { flex: 1; }
         button.primary {
-            background: #3498db;
+            background: var(--accent);
             color: white;
             border: none;
             border-radius: 8px;
@@ -96,10 +142,21 @@
         button.primary:hover { background: #1e5799; }
         button.primary:disabled { background: #a8c6dd; cursor: not-allowed; }
         #status { margin-top: 0.75rem; font-size: 0.9rem; white-space: pre-line; }
-        #status.ok { color: #1e7e34; }
-        #status.err { color: #c0392b; }
+        #status.ok { color: var(--ok); }
+        #status.err { color: var(--err); }
         .checkbox-label { display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem; margin-top: 0.5rem; }
-        .savebar { position: sticky; bottom: 0; background: linear-gradient(transparent, #f4f6f8 30%); padding: 1rem 0 0.5rem; text-align: right; }
+        .savebar { position: sticky; bottom: 0; background: linear-gradient(transparent, var(--bg) 30%); padding: 1rem 0 0.5rem; text-align: right; }
+
+        @media (max-width: 560px) {
+            .container { padding: 1rem 0.75rem 2.5rem; }
+            .card { padding: 1rem 1.1rem; }
+            .place-head { flex-direction: column; align-items: center; gap: 0.75rem; }
+            .cover { width: 64px; height: 64px; }
+            .fields { width: 100%; grid-template-columns: 1fr; }   /* one field per line */
+            .row { flex-direction: column; gap: 0.5rem; }
+            .savebar { text-align: center; }
+            .savebar .primary { width: 100%; }
+        }
     </style>
 </head>
 <body>
